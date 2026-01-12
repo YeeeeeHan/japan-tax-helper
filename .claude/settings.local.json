@@ -9,7 +9,20 @@
       "Bash(kill:*)",
       "WebSearch",
       "WebFetch(domain:ui-patterns.com)",
-      "WebFetch(domain:www.magictoolbox.com)"
+      "WebFetch(domain:www.magictoolbox.com)",
+      "Bash(npm run dev:*)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_wait_for",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_file_upload",
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "mcp__plugin_playwright_playwright__browser_press_key",
+      "mcp__plugin_playwright_playwright__browser_select_option",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "Skill(frontend-design)"
     ]
   }
 }

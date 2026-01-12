@@ -1,77 +1,31 @@
 import { ExpenseCategory } from '@/types/receipt';
 
 // Standard expense categories for Japanese tax filing
+// Organized in 3 tiers based on frequency of use
 export const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; description: string }[] = [
-  {
-    value: '旅費交通費',
-    label: '旅費交通費',
-    description: 'Travel and transportation expenses',
-  },
-  {
-    value: '交際費',
-    label: '交際費',
-    description: 'Entertainment expenses',
-  },
-  {
-    value: '消耗品費',
-    label: '消耗品費',
-    description: 'Consumables and supplies',
-  },
-  {
-    value: '通信費',
-    label: '通信費',
-    description: 'Communication expenses',
-  },
-  {
-    value: '水道光熱費',
-    label: '水道光熱費',
-    description: 'Utilities',
-  },
-  {
-    value: '広告宣伝費',
-    label: '広告宣伝費',
-    description: 'Advertising expenses',
-  },
-  {
-    value: '損害保険料',
-    label: '損害保険料',
-    description: 'Insurance premiums',
-  },
-  {
-    value: '租税公課',
-    label: '租税公課',
-    description: 'Taxes and public dues',
-  },
-  {
-    value: '地代家賃',
-    label: '地代家賃',
-    description: 'Rent',
-  },
-  {
-    value: '外注費',
-    label: '外注費',
-    description: 'Outsourcing costs',
-  },
-  {
-    value: '会議費',
-    label: '会議費',
-    description: 'Meeting expenses',
-  },
-  {
-    value: '研修費',
-    label: '研修費',
-    description: 'Training expenses',
-  },
-  {
-    value: '新聞図書費',
-    label: '新聞図書費',
-    description: 'Books and subscriptions',
-  },
-  {
-    value: '未分類',
-    label: '未分類',
-    description: 'Uncategorized',
-  },
+  // Tier 1: Essential Categories (必須カテゴリ) - covers ~90% of receipts
+  { value: '旅費交通費', label: '旅費交通費', description: 'Travel & Transportation' },
+  { value: '通信費', label: '通信費', description: 'Communication Expenses' },
+  { value: '消耗品費', label: '消耗品費', description: 'Office Supplies' },
+  { value: '新聞図書費', label: '新聞図書費', description: 'Books & Subscriptions' },
+  { value: '研修費', label: '研修費', description: 'Training & Education' },
+  { value: '支払手数料', label: '支払手数料', description: 'Professional & Association Fees' },
+  { value: '交際費', label: '交際費', description: 'Entertainment Expenses' },
+  { value: '会議費', label: '会議費', description: 'Meeting Expenses' },
+  // Tier 2: Secondary Categories (準必須カテゴリ)
+  { value: '外注費', label: '外注費', description: 'Outsourcing Fees' },
+  { value: '広告宣伝費', label: '広告宣伝費', description: 'Advertising & Marketing' },
+  { value: '地代家賃', label: '地代家賃', description: 'Rent' },
+  { value: '水道光熱費', label: '水道光熱費', description: 'Utilities' },
+  { value: '修繕費', label: '修繕費', description: 'Repairs & Maintenance' },
+  { value: '保険料', label: '保険料', description: 'Insurance Premiums' },
+  { value: '租税公課', label: '租税公課', description: 'Taxes & Public Dues' },
+  { value: '雑費', label: '雑費', description: 'Miscellaneous Expenses' },
+  // Tier 3: High-Value Items (減価償却関連) - items ≥¥100,000
+  { value: '工具器具備品', label: '工具器具備品', description: 'Office Equipment' },
+  { value: '減価償却費', label: '減価償却費', description: 'Depreciation Expense' },
+  // Default
+  { value: '未分類', label: '未分類', description: 'Uncategorized' },
 ];
 
 // Japanese consumption tax rates
@@ -87,6 +41,21 @@ export const CONFIDENCE_THRESHOLDS = {
   LOW: 0.6,
   FLAG_FOR_REVIEW: 0.75, // Flag if overall confidence is below this
   CRITICAL_FIELD: 0.8,   // Flag if critical fields (T-number, amount) are below this
+} as const;
+
+// Equipment expense threshold (for 工具器具備品 classification)
+// Items ≥¥100,000 must be treated as fixed assets requiring depreciation
+export const EQUIPMENT_THRESHOLD = 100000; // ¥100,000
+
+// Depreciation thresholds for 少額減価償却資産の特例
+// Blue Form (青色申告) filers can expense items under these limits immediately
+export const DEPRECIATION_THRESHOLDS = {
+  // Until March 2026
+  IMMEDIATE_EXPENSE_LIMIT_CURRENT: 300000, // ¥300,000
+  // After April 2026 (per 令和8年度税制改正)
+  IMMEDIATE_EXPENSE_LIMIT_FUTURE: 400000, // ¥400,000
+  // Cutoff date for threshold change
+  THRESHOLD_CHANGE_DATE: '2026-04-01',
 } as const;
 
 // File upload constraints

@@ -20,6 +20,8 @@ export const translations = {
     // Upload page
     upload_title: '領収書一括アップロード',
     upload_subtitle: '複数の領収書を一度に登録します。解析結果を確認してから登録ボタンを押してください。',
+    upload_instructions_title: '良い写真を撮るためのガイドライン',
+    upload_instructions_description: 'AI が正確にデータを抽出するために、以下のガイドラインに従って領収書を撮影してください。',
     upload_card_uploaded: 'アップロード済み',
     upload_card_processing: '処理中',
     upload_card_completed: '完了（確認待ち）',
@@ -109,11 +111,15 @@ export const translations = {
     review_reason_date: '取引日の確認',
 
     // Validation warnings (from API)
+    warning_low_confidence: '全体的な信頼度が低い',
     warning_tnumber_not_found: 'T番号が見つかりません',
     warning_tnumber_low_confidence: 'T番号の信頼度が低い',
     warning_tnumber_missing_compliance: 'T番号がありません。適格請求書の要件を満たさない可能性があります',
     warning_amount_low_confidence: '金額の信頼度が低い',
     warning_total_low_confidence: '合計金額の信頼度が低い',
+    warning_tnumber_missing: 'T番号がありません。適格請求書の要件を満たさない可能性があります',
+    warning_tax_calculation_mismatch: '税額計算の不一致: 期待値 {expected}円、実際 {actual}円',
+    warning_total_amount_mismatch: '合計金額の不一致: 期待値 {expected}円、実際 {actual}円',
 
     // Actions
     action_save_next: '保存して次へ',
@@ -161,6 +167,42 @@ export const translations = {
     // Export
     exporting: 'エクスポート中...',
     export_error: 'エクスポートに失敗しました。もう一度お試しください。',
+
+    // Expense Categories (勘定科目)
+    category_旅費交通費: '旅費交通費',
+    category_通信費: '通信費',
+    category_消耗品費: '消耗品費',
+    category_新聞図書費: '新聞図書費',
+    category_研修費: '研修費',
+    category_支払手数料: '支払手数料',
+    category_交際費: '交際費',
+    category_会議費: '会議費',
+    category_外注費: '外注費',
+    category_広告宣伝費: '広告宣伝費',
+    category_地代家賃: '地代家賃',
+    category_水道光熱費: '水道光熱費',
+    category_修繕費: '修繕費',
+    category_保険料: '保険料',
+    category_租税公課: '租税公課',
+    category_雑費: '雑費',
+    category_工具器具備品: '工具器具備品',
+    category_減価償却費: '減価償却費',
+    category_未分類: '未分類',
+
+    // Equipment threshold warnings
+    warning_equipment_threshold_title: '高額備品の提案',
+    warning_equipment_threshold: '10万円以上のため工具器具備品として提案。青色申告者は少額減価償却資産の特例で即時経費化可能です。',
+    warning_equipment_change_category: '工具器具備品に変更',
+
+    // Excel export - Depreciation sheet
+    sheet_depreciation: '減価償却対象',
+    depreciation_method: '償却方法の提案',
+    depreciation_note: '備考',
+    depreciation_header_note: '※青色申告者は少額減価償却資産の特例が適用可能な場合があります',
+    depreciation_immediate: '即時経費化可能（特例）',
+    depreciation_lumpsum: '一括償却資産（3年均等）',
+    depreciation_standard: '通常減価償却（耐用年数）',
+    depreciation_register_required: '要：固定資産台帳への登録',
   },
 
   en: {
@@ -180,6 +222,8 @@ export const translations = {
     // Upload page
     upload_title: 'Batch Upload Receipts',
     upload_subtitle: 'Upload multiple receipts at once. Review the extracted data before confirming.',
+    upload_instructions_title: 'Photo Guidelines for Best Results',
+    upload_instructions_description: 'For accurate AI data extraction, please follow these guidelines when photographing receipts.',
     upload_card_uploaded: 'Uploaded',
     upload_card_processing: 'Processing',
     upload_card_completed: 'Completed (Awaiting Review)',
@@ -269,11 +313,15 @@ export const translations = {
     review_reason_date: 'Date needs review',
 
     // Validation warnings (from API)
+    warning_low_confidence: 'Overall confidence is low',
     warning_tnumber_not_found: 'T-Number not found on receipt',
     warning_tnumber_low_confidence: 'T-Number has low confidence',
     warning_tnumber_missing_compliance: 'T-Number is missing. May not comply with 適格請求書 requirements',
     warning_amount_low_confidence: 'Amount has low confidence',
     warning_total_low_confidence: 'Total amount has low confidence',
+    warning_tnumber_missing: 'T-Number is missing. May not comply with 適格請求書 requirements',
+    warning_tax_calculation_mismatch: 'Tax calculation mismatch: expected ¥{expected}, got ¥{actual}',
+    warning_total_amount_mismatch: 'Total amount mismatch: expected ¥{expected}, got ¥{actual}',
 
     // Actions
     action_save_next: 'Save & Next',
@@ -321,6 +369,42 @@ export const translations = {
     // Export
     exporting: 'Exporting...',
     export_error: 'Export failed. Please try again.',
+
+    // Expense Categories (勘定科目) - Japanese + English format for English mode
+    category_旅費交通費: '旅費交通費 (Travel & Transportation)',
+    category_通信費: '通信費 (Communication Expenses)',
+    category_消耗品費: '消耗品費 (Office Supplies)',
+    category_新聞図書費: '新聞図書費 (Books & Subscriptions)',
+    category_研修費: '研修費 (Training & Education)',
+    category_支払手数料: '支払手数料 (Professional & Association Fees)',
+    category_交際費: '交際費 (Entertainment Expenses)',
+    category_会議費: '会議費 (Meeting Expenses)',
+    category_外注費: '外注費 (Outsourcing Fees)',
+    category_広告宣伝費: '広告宣伝費 (Advertising & Marketing)',
+    category_地代家賃: '地代家賃 (Rent)',
+    category_水道光熱費: '水道光熱費 (Utilities)',
+    category_修繕費: '修繕費 (Repairs & Maintenance)',
+    category_保険料: '保険料 (Insurance Premiums)',
+    category_租税公課: '租税公課 (Taxes & Public Dues)',
+    category_雑費: '雑費 (Miscellaneous Expenses)',
+    category_工具器具備品: '工具器具備品 (Office Equipment)',
+    category_減価償却費: '減価償却費 (Depreciation Expense)',
+    category_未分類: '未分類 (Uncategorized)',
+
+    // Equipment threshold warnings
+    warning_equipment_threshold_title: 'High-Value Equipment Suggestion',
+    warning_equipment_threshold: 'Amount ≥¥100,000: Suggested as Office Equipment. Blue form (青色申告) filers can use immediate expensing under 少額減価償却資産の特例.',
+    warning_equipment_change_category: 'Change to Office Equipment',
+
+    // Excel export - Depreciation sheet
+    sheet_depreciation: 'Depreciation Assets',
+    depreciation_method: 'Suggested Method',
+    depreciation_note: 'Notes',
+    depreciation_header_note: '※Blue form filers may apply 少額減価償却資産の特例 (immediate expensing)',
+    depreciation_immediate: 'Immediate expensing (special rule)',
+    depreciation_lumpsum: 'Lump-sum depreciation (3 years)',
+    depreciation_standard: 'Standard depreciation (useful life)',
+    depreciation_register_required: 'Required: Register in fixed asset ledger',
   },
 };
 

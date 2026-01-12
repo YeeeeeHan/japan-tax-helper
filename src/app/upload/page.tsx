@@ -1,24 +1,41 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useDropzone } from 'react-dropzone';
-import { v4 as uuidv4 } from 'uuid';
-import { CloudUpload, FileImage, CheckCircle2, AlertCircle, Loader2, X, ArrowRight, RefreshCcw, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
-import { storeImage, getImageBlob } from '@/lib/storage/images';
+import {
+  DevStrategySwitcher,
+  useOCRStrategy,
+} from '@/components/dev/DevStrategySwitcher';
+import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import {
   addReceipt,
   addToUploadQueue,
-  updateUploadQueueItem,
-  getUploadQueue,
   deleteUploadQueueItem,
+  getUploadQueue,
+  updateUploadQueueItem,
 } from '@/lib/db/operations';
-import type { Receipt, UploadQueueItem } from '@/types/receipt';
-import { formatFileSize } from '@/lib/utils/format';
-import { UPLOAD_CONSTRAINTS } from '@/lib/utils/constants';
-import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { useI18n } from '@/lib/i18n/context';
-import { DevStrategySwitcher, useOCRStrategy } from '@/components/dev/DevStrategySwitcher';
+import { getImageBlob, storeImage } from '@/lib/storage/images';
+import { UPLOAD_CONSTRAINTS } from '@/lib/utils/constants';
+import { formatFileSize } from '@/lib/utils/format';
+import type { Receipt, UploadQueueItem } from '@/types/receipt';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  CloudUpload,
+  FileImage,
+  Info,
+  Loader2,
+  RefreshCcw,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { v4 as uuidv4 } from 'uuid';
 
 interface FileWithStatus {
   id: string;
@@ -40,15 +57,27 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 export default function UploadPage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [files, setFiles] = useState<FileWithStatus[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileWithStatus | null>(null);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [thumbnailsRef, setThumbnailsRef] = useState<HTMLDivElement | null>(
+    null
+  );
 
   // Get current OCR strategy from dev switcher
   const currentStrategy = useOCRStrategy();
+
+  // Scroll to thumbnails when files are first added
+  useEffect(() => {
+    if (files.length > 0 && thumbnailsRef) {
+      setTimeout(() => {
+        thumbnailsRef.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 100);
+    }
+  }, [files.length > 0 ? 1 : 0, thumbnailsRef]);
 
   // Restore upload queue from IndexedDB on mount
   useEffect(() => {
@@ -100,17 +129,19 @@ export default function UploadPage() {
 
   // Generate thumbnails for uploaded files
   useEffect(() => {
-    files.forEach(f => {
+    files.forEach((f) => {
       if (!f.thumbnailUrl && f.file && f.file.type.startsWith('image/')) {
         const url = URL.createObjectURL(f.file);
-        setFiles(prev => prev.map(file =>
-          file.id === f.id ? { ...file, thumbnailUrl: url } : file
-        ));
+        setFiles((prev) =>
+          prev.map((file) =>
+            file.id === f.id ? { ...file, thumbnailUrl: url } : file
+          )
+        );
       }
     });
     // Cleanup URLs on unmount
     return () => {
-      files.forEach(f => {
+      files.forEach((f) => {
         if (f.thumbnailUrl) URL.revokeObjectURL(f.thumbnailUrl);
       });
     };
@@ -164,7 +195,7 @@ export default function UploadPage() {
       })
     );
 
-    setFiles(prev => [...prev, ...newFiles]);
+    setFiles((prev) => [...prev, ...newFiles]);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -180,7 +211,7 @@ export default function UploadPage() {
   });
 
   const removeFile = async (id: string) => {
-    const file = files.find(f => f.id === id);
+    const file = files.find((f) => f.id === id);
     if (!file) return;
 
     // Clean up thumbnail URL
@@ -193,7 +224,7 @@ export default function UploadPage() {
       console.error('Error deleting from upload queue:', error);
     }
 
-    setFiles(prev => prev.filter(f => f.id !== id));
+    setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
   const processFile = async (fileWithStatus: FileWithStatus) => {
@@ -201,10 +232,15 @@ export default function UploadPage() {
 
     try {
       // Update status to uploading
-      setFiles(prev =>
-        prev.map(f => (f.id === id ? { ...f, status: 'uploading' as const, progress: 10 } : f))
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id ? { ...f, status: 'uploading' as const, progress: 10 } : f
+        )
       );
-      await updateUploadQueueItem(queueId, { status: 'uploading', progress: 10 });
+      await updateUploadQueueItem(queueId, {
+        status: 'uploading',
+        progress: 10,
+      });
 
       // Get the blob from IndexedDB (file might be null if restored)
       let blob: Blob;
@@ -219,10 +255,17 @@ export default function UploadPage() {
       }
 
       // Update status to processing
-      setFiles(prev =>
-        prev.map(f => (f.id === id ? { ...f, status: 'processing' as const, progress: 30 } : f))
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id
+            ? { ...f, status: 'processing' as const, progress: 30 }
+            : f
+        )
       );
-      await updateUploadQueueItem(queueId, { status: 'processing', progress: 30 });
+      await updateUploadQueueItem(queueId, {
+        status: 'processing',
+        progress: 30,
+      });
 
       // Send to API for extraction
       const formData = new FormData();
@@ -245,8 +288,8 @@ export default function UploadPage() {
 
       const result = await response.json();
 
-      setFiles(prev =>
-        prev.map(f => (f.id === id ? { ...f, progress: 80 } : f))
+      setFiles((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, progress: 80 } : f))
       );
       await updateUploadQueueItem(queueId, { progress: 80 });
 
@@ -273,10 +316,15 @@ export default function UploadPage() {
       await addReceipt(receipt);
 
       // Update to completed
-      setFiles(prev =>
-        prev.map(f =>
+      setFiles((prev) =>
+        prev.map((f) =>
           f.id === id
-            ? { ...f, status: 'completed' as const, progress: 100, receiptId: receipt.id }
+            ? {
+                ...f,
+                status: 'completed' as const,
+                progress: 100,
+                receiptId: receipt.id,
+              }
             : f
         )
       );
@@ -287,8 +335,8 @@ export default function UploadPage() {
       });
     } catch (error: any) {
       console.error('Error processing file:', error);
-      setFiles(prev =>
-        prev.map(f =>
+      setFiles((prev) =>
+        prev.map((f) =>
           f.id === id
             ? { ...f, status: 'failed' as const, error: error.message }
             : f
@@ -315,13 +363,15 @@ export default function UploadPage() {
   };
 
   const retryFile = async (id: string) => {
-    const fileToRetry = files.find(f => f.id === id);
+    const fileToRetry = files.find((f) => f.id === id);
     if (!fileToRetry || fileToRetry.status !== 'failed') return;
 
     // Reset status to pending first
-    setFiles(prev =>
-      prev.map(f =>
-        f.id === id ? { ...f, status: 'pending' as const, progress: 0, error: undefined } : f
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === id
+          ? { ...f, status: 'pending' as const, progress: 0, error: undefined }
+          : f
       )
     );
 
@@ -333,11 +383,16 @@ export default function UploadPage() {
     });
 
     // Process the file
-    await processFile({ ...fileToRetry, status: 'pending', progress: 0, error: undefined });
+    await processFile({
+      ...fileToRetry,
+      status: 'pending',
+      progress: 0,
+      error: undefined,
+    });
   };
 
   const clearCompleted = async () => {
-    const completedFiles = files.filter(f => f.status === 'completed');
+    const completedFiles = files.filter((f) => f.status === 'completed');
 
     // Delete completed files from upload queue
     for (const file of completedFiles) {
@@ -354,7 +409,7 @@ export default function UploadPage() {
     }
 
     // Remove from state
-    setFiles(prev => prev.filter(f => f.status !== 'completed'));
+    setFiles((prev) => prev.filter((f) => f.status !== 'completed'));
   };
 
   const clearAll = async () => {
@@ -382,12 +437,15 @@ export default function UploadPage() {
     router.push('/dashboard');
   };
 
-  const pendingCount = files.filter(f => f.status === 'pending').length;
-  const processingCount = files.filter(f => f.status === 'processing' || f.status === 'uploading').length;
-  const completedCount = files.filter(f => f.status === 'completed').length;
-  const failedCount = files.filter(f => f.status === 'failed').length;
+  const pendingCount = files.filter((f) => f.status === 'pending').length;
+  const processingCount = files.filter(
+    (f) => f.status === 'processing' || f.status === 'uploading'
+  ).length;
+  const completedCount = files.filter((f) => f.status === 'completed').length;
+  const failedCount = files.filter((f) => f.status === 'failed').length;
   const totalSize = files.reduce((acc, f) => acc + f.fileSize, 0);
-  const progressPercent = files.length > 0 ? Math.round((completedCount / files.length) * 100) : 0;
+  const progressPercent =
+    files.length > 0 ? Math.round((completedCount / files.length) * 100) : 0;
 
   // Preview navigation
   const openPreview = (file: FileWithStatus) => {
@@ -402,7 +460,7 @@ export default function UploadPage() {
 
   const navigatePreview = (direction: 'prev' | 'next') => {
     if (!previewFile) return;
-    const currentIndex = files.findIndex(f => f.id === previewFile.id);
+    const currentIndex = files.findIndex((f) => f.id === previewFile.id);
     let newIndex: number;
     if (direction === 'prev') {
       newIndex = currentIndex > 0 ? currentIndex - 1 : files.length - 1;
@@ -413,7 +471,9 @@ export default function UploadPage() {
     setPreviewZoom(1);
   };
 
-  const previewIndex = previewFile ? files.findIndex(f => f.id === previewFile.id) : -1;
+  const previewIndex = previewFile
+    ? files.findIndex((f) => f.id === previewFile.id)
+    : -1;
 
   // Keyboard navigation for preview modal
   useEffect(() => {
@@ -431,10 +491,10 @@ export default function UploadPage() {
         closePreview();
       } else if (e.key === '+' || e.key === '=') {
         e.preventDefault();
-        setPreviewZoom(z => Math.min(3, z + 0.25));
+        setPreviewZoom((z) => Math.min(3, z + 0.25));
       } else if (e.key === '-') {
         e.preventDefault();
-        setPreviewZoom(z => Math.max(0.5, z - 0.25));
+        setPreviewZoom((z) => Math.max(0.5, z - 0.25));
       }
     };
 
@@ -443,7 +503,7 @@ export default function UploadPage() {
   }, [previewFile, files]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-32">
+    <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header - Simplified */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -452,7 +512,9 @@ export default function UploadPage() {
               <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
                 <FileImage className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900">TaxHelper Japan</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                TaxHelper Japan
+              </h1>
             </div>
             <div className="flex items-center space-x-3">
               <LanguageSwitcher />
@@ -468,57 +530,85 @@ export default function UploadPage() {
       </header>
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('upload_title')}</h2>
-        <p className="text-gray-600 mb-8">
-          {t('upload_subtitle')}
-        </p>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <h2 className="text-xl font-bold text-gray-900 mb-1">
+          {t('upload_title')}
+        </h2>
+        <p className="text-sm text-gray-600 mb-4">{t('upload_subtitle')}</p>
 
-        {/* Drop zone */}
-        <div
-          {...getRootProps()}
-          className={`
-            border-2 border-dashed rounded-xl p-8 md:p-12 text-center cursor-pointer
-            transition-colors duration-150
-            ${
-              isDragActive
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-300 bg-white hover:border-primary-400'
-            }
-          `}
-        >
-          <input {...getInputProps()} />
-          <div className="flex flex-col items-center">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-              <CloudUpload className="w-8 h-8 text-primary-600" />
+        {/* Two-column layout: Instructions (left) + Upload (right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          {/* Left: Receipt Photo Guidelines */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Info className="w-4 h-4 text-blue-600 flex-shrink-0" />
+              <div>
+                <h3 className="text-xs font-semibold text-gray-900">
+                  {t('upload_instructions_title')}
+                </h3>
+              </div>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {t('upload_dropzone_title')}
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">
-              {t('upload_dropzone_subtitle')}
-            </p>
-            <button
-              type="button"
-              className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-            >
-              {t('upload_file_select')}
-            </button>
+            <div className="bg-white rounded p-2 max-h-[50vh] overflow-y-auto">
+              <img
+                src={`/instructions/${
+                  language === 'ja' ? 'japanese' : 'english'
+                }-instructions.png`}
+                alt={t('upload_instructions_title')}
+                className="w-full h-auto rounded"
+              />
+            </div>
+          </div>
+
+          {/* Right: Drop zone */}
+          <div
+            {...getRootProps()}
+            className={`
+              border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+              transition-colors duration-150 flex items-center justify-center
+              max-h-[50vh]
+              ${
+                isDragActive
+                  ? 'border-primary-500 bg-primary-50'
+                  : 'border-gray-300 bg-white hover:border-primary-400'
+              }
+            `}
+          >
+            <input {...getInputProps()} />
+            <div className="flex flex-col items-center">
+              <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-3">
+                <CloudUpload className="w-6 h-6 text-primary-600" />
+              </div>
+              <h3 className="text-base font-medium text-gray-900 mb-2">
+                {t('upload_dropzone_title')}
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                {t('upload_dropzone_subtitle')}
+              </p>
+              <button
+                type="button"
+                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              >
+                {t('upload_file_select')}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Thumbnail Grid */}
         {files.length > 0 && (
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-gray-900">
+          <div
+            ref={setThumbnailsRef}
+            className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900">
                 {t('upload_files')} ({files.length})
               </h3>
               <div className="flex items-center gap-2">
                 {completedCount > 0 && (
                   <button
                     onClick={clearCompleted}
-                    className="text-sm text-green-600 hover:text-green-700 font-medium"
+                    className="text-xs text-green-600 hover:text-green-700 font-medium"
                   >
                     Clear Completed ({completedCount})
                   </button>
@@ -526,7 +616,7 @@ export default function UploadPage() {
                 {pendingCount > 0 && !isProcessing && (
                   <button
                     onClick={clearAll}
-                    className="text-sm text-gray-500 hover:text-gray-700"
+                    className="text-xs text-gray-500 hover:text-gray-700"
                   >
                     {t('upload_clear_all')}
                   </button>
@@ -535,11 +625,11 @@ export default function UploadPage() {
             </div>
 
             {/* Grid of thumbnails */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
-              {files.map(fileWithStatus => (
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+              {files.map((fileWithStatus) => (
                 <div
                   key={fileWithStatus.id}
-                  className="relative group aspect-square bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer"
+                  className="relative group aspect-square bg-white rounded border border-gray-300 overflow-hidden cursor-pointer hover:border-primary-400 transition-colors"
                   onClick={() => openPreview(fileWithStatus)}
                 >
                   {/* Thumbnail image */}
@@ -551,14 +641,14 @@ export default function UploadPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <FileImage className="w-8 h-8 text-gray-400" />
+                      <FileImage className="w-6 h-6 text-gray-400" />
                     </div>
                   )}
 
                   {/* Status overlay */}
                   {fileWithStatus.status === 'completed' && (
                     <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
-                      <CheckCircle2 className="w-8 h-8 text-green-600" />
+                      <CheckCircle2 className="w-6 h-6 text-green-600" />
                     </div>
                   )}
                   {fileWithStatus.status === 'failed' && (
@@ -570,13 +660,16 @@ export default function UploadPage() {
                       className="absolute inset-0 bg-red-500/20 flex flex-col items-center justify-center cursor-pointer hover:bg-red-500/30 transition-colors"
                       title={t('upload_click_to_retry')}
                     >
-                      <RefreshCcw className="w-6 h-6 text-red-600 mb-1" />
-                      <span className="text-xs text-red-700 font-medium">{t('upload_retry')}</span>
+                      <RefreshCcw className="w-5 h-5 text-red-600 mb-1" />
+                      <span className="text-[10px] text-red-700 font-medium">
+                        {t('upload_retry')}
+                      </span>
                     </button>
                   )}
-                  {(fileWithStatus.status === 'processing' || fileWithStatus.status === 'uploading') && (
+                  {(fileWithStatus.status === 'processing' ||
+                    fileWithStatus.status === 'uploading') && (
                     <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+                      <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
                     </div>
                   )}
 
@@ -587,15 +680,17 @@ export default function UploadPage() {
                         e.stopPropagation();
                         removeFile(fileWithStatus.id);
                       }}
-                      className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-0.5 right-0.5 w-5 h-5 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      <X className="w-4 h-4 text-white" />
+                      <X className="w-3 h-3 text-white" />
                     </button>
                   )}
 
                   {/* File name tooltip on hover */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-xs text-white truncate">{fileWithStatus.fileName}</p>
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-[10px] text-white truncate">
+                      {fileWithStatus.fileName}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -613,9 +708,12 @@ export default function UploadPage() {
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">
-                    {t('upload_processing_status')} {completedCount}/{files.length}
+                    {t('upload_processing_status')} {completedCount}/
+                    {files.length}
                   </span>
-                  <span className="text-sm font-medium text-primary-600">{progressPercent}%</span>
+                  <span className="text-sm font-medium text-primary-600">
+                    {progressPercent}%
+                  </span>
                 </div>
                 <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
                   <div
@@ -631,23 +729,35 @@ export default function UploadPage() {
               {/* Summary stats */}
               <div className="flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">{t('upload_files_count')}</span>
-                  <span className="font-medium text-gray-900">{files.length}</span>
+                  <span className="text-gray-500">
+                    {t('upload_files_count')}
+                  </span>
+                  <span className="font-medium text-gray-900">
+                    {files.length}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">{t('upload_total_size')}</span>
-                  <span className="font-medium text-gray-900">{formatFileSize(totalSize)}</span>
+                  <span className="text-gray-500">
+                    {t('upload_total_size')}
+                  </span>
+                  <span className="font-medium text-gray-900">
+                    {formatFileSize(totalSize)}
+                  </span>
                 </div>
                 {completedCount > 0 && (
                   <div className="flex items-center gap-2 text-green-600">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span className="font-medium">{completedCount} {t('upload_done')}</span>
+                    <span className="font-medium">
+                      {completedCount} {t('upload_done')}
+                    </span>
                   </div>
                 )}
                 {failedCount > 0 && (
                   <div className="flex items-center gap-2 text-red-600">
                     <AlertCircle className="w-4 h-4" />
-                    <span className="font-medium">{failedCount} {t('upload_failed')}</span>
+                    <span className="font-medium">
+                      {failedCount} {t('upload_failed')}
+                    </span>
                   </div>
                 )}
               </div>
@@ -668,7 +778,9 @@ export default function UploadPage() {
                     disabled={pendingCount === 0 || isProcessing}
                     className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2"
                   >
-                    {isProcessing && <Loader2 className="w-5 h-5 animate-spin" />}
+                    {isProcessing && (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    )}
                     <span>
                       {isProcessing
                         ? t('upload_processing_status')
@@ -690,18 +802,27 @@ export default function UploadPage() {
               {t('upload_confirm_title')}
             </h3>
             <p className="text-gray-600 mb-6">
-              {t('upload_confirm_message', { count: pendingCount, size: formatFileSize(totalSize) })}
+              {t('upload_confirm_message', {
+                count: pendingCount,
+                size: formatFileSize(totalSize),
+              })}
             </p>
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-500">{t('upload_files_count')}</span>
+                  <span className="text-gray-500">
+                    {t('upload_files_count')}
+                  </span>
                   <p className="font-medium text-gray-900">{pendingCount}</p>
                 </div>
                 <div>
-                  <span className="text-gray-500">{t('upload_total_size')}</span>
-                  <p className="font-medium text-gray-900">{formatFileSize(totalSize)}</p>
+                  <span className="text-gray-500">
+                    {t('upload_total_size')}
+                  </span>
+                  <p className="font-medium text-gray-900">
+                    {formatFileSize(totalSize)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -789,7 +910,7 @@ export default function UploadPage() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setPreviewZoom(z => Math.max(0.5, z - 0.25));
+                setPreviewZoom((z) => Math.max(0.5, z - 0.25));
               }}
               className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
               title="Zoom out"
@@ -802,7 +923,7 @@ export default function UploadPage() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setPreviewZoom(z => Math.min(3, z + 0.25));
+                setPreviewZoom((z) => Math.min(3, z + 0.25));
               }}
               className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
               title="Zoom in"

@@ -99,19 +99,27 @@ export interface ConfidenceScore {
 }
 
 export type ExpenseCategory =
-  | '旅費交通費' // Travel and transportation
-  | '交際費' // Entertainment
-  | '消耗品費' // Consumables
-  | '通信費' // Communication
-  | '水道光熱費' // Utilities
-  | '広告宣伝費' // Advertising
-  | '損害保険料' // Insurance
-  | '租税公課' // Taxes and dues
+  // Tier 1: Essential Categories (必須カテゴリ)
+  | '旅費交通費' // Travel & Transportation
+  | '通信費' // Communication Expenses
+  | '消耗品費' // Office Supplies (<¥100,000)
+  | '新聞図書費' // Books & Subscriptions
+  | '研修費' // Training & Education
+  | '支払手数料' // Professional & Association Fees (NEW)
+  | '交際費' // Entertainment Expenses
+  | '会議費' // Meeting Expenses
+  // Tier 2: Secondary Categories (準必須カテゴリ)
+  | '外注費' // Outsourcing Fees
+  | '広告宣伝費' // Advertising & Marketing
   | '地代家賃' // Rent
-  | '外注費' // Outsourcing
-  | '会議費' // Meeting expenses
-  | '研修費' // Training
-  | '新聞図書費' // Books and subscriptions
+  | '水道光熱費' // Utilities
+  | '修繕費' // Repairs & Maintenance (NEW)
+  | '保険料' // Insurance Premiums (renamed from 損害保険料)
+  | '租税公課' // Taxes & Public Dues
+  | '雑費' // Miscellaneous Expenses (NEW)
+  // Tier 3: High-Value Items (減価償却関連)
+  | '工具器具備品' // Office Equipment (≥¥100,000) (NEW)
+  | '減価償却費' // Depreciation Expense (NEW)
   | '未分類'; // Uncategorized
 
 export type PaymentMethod =

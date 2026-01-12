@@ -4,6 +4,7 @@ import type { Receipt } from '@/types/receipt';
 import { getImageBlob } from '../storage/images';
 import { formatDate, formatCurrency } from '../utils/format';
 import type { Language } from '../i18n/translations';
+import { EQUIPMENT_THRESHOLD, DEPRECIATION_THRESHOLDS } from '../utils/constants';
 
 /**
  * Column header translations for Excel export
@@ -15,6 +16,7 @@ const EXPORT_HEADERS = {
     sheet_summary: '集計',
     sheet_flagged: '要確認',
     sheet_images: '領収書画像',
+    sheet_depreciation: '減価償却対象',
     // Main sheet
     date: '日付',
     issuer: '発行者',
@@ -37,6 +39,14 @@ const EXPORT_HEADERS = {
     image: '画像',
     amount: '金額',
     no_image: '画像なし',
+    // Depreciation sheet
+    depreciation_method: '償却方法の提案',
+    depreciation_note: '備考',
+    depreciation_header_note: '※青色申告者は少額減価償却資産の特例が適用可能な場合があります',
+    depreciation_immediate: '即時経費化可能（特例）',
+    depreciation_lumpsum: '一括償却資産（3年均等）',
+    depreciation_standard: '通常減価償却（耐用年数）',
+    depreciation_register_required: '要：固定資産台帳への登録',
     // Issue messages
     issue_no_tnumber: 'T番号なし',
     issue_low_confidence: '信頼度低い',
@@ -49,6 +59,7 @@ const EXPORT_HEADERS = {
     sheet_summary: 'Summary',
     sheet_flagged: 'Flagged',
     sheet_images: 'Images',
+    sheet_depreciation: 'Depreciation Assets',
     // Main sheet
     date: 'Date',
     issuer: 'Issuer',
@@ -71,6 +82,14 @@ const EXPORT_HEADERS = {
     image: 'Image',
     amount: 'Amount',
     no_image: 'No image',
+    // Depreciation sheet
+    depreciation_method: 'Suggested Method',
+    depreciation_note: 'Notes',
+    depreciation_header_note: '※Blue form filers may apply 少額減価償却資産の特例 (immediate expensing)',
+    depreciation_immediate: 'Immediate expensing (special rule)',
+    depreciation_lumpsum: 'Lump-sum depreciation (3 years)',
+    depreciation_standard: 'Standard depreciation (useful life)',
+    depreciation_register_required: 'Required: Fixed asset ledger',
     // Issue messages
     issue_no_tnumber: 'No T-Number',
     issue_low_confidence: 'Low confidence',
@@ -106,6 +125,9 @@ export async function exportToExcel(receipts: Receipt[], lang: Language = 'ja'):
 
   // Sheet 4: Images (領収書画像)
   await createImagesSheet(workbook, receipts, h);
+
+  // Sheet 5: Depreciation-eligible assets (減価償却対象)
+  await createDepreciationSheet(workbook, receipts, h);
 
   // Generate and download
   const buffer = await workbook.xlsx.writeBuffer();
@@ -538,6 +560,137 @@ async function createImagesSheet(workbook: ExcelJS.Workbook, receipts: Receipt[]
       }
       currentRow++;
     }
+  }
+
+  // Freeze header row
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+}
+
+/**
+ * Create depreciation-eligible assets sheet
+ * Lists items with totalAmount >= ¥100,000 that require depreciation treatment
+ * Provides guidance on depreciation method based on amount and current tax rules
+ */
+async function createDepreciationSheet(workbook: ExcelJS.Workbook, receipts: Receipt[], h: ExportHeaders) {
+  const sheet = workbook.addWorksheet(h.sheet_depreciation);
+
+  // Filter high-value receipts (≥ ¥100,000)
+  const highValueReceipts = receipts.filter(
+    r => r.extractedData.totalAmount >= EQUIPMENT_THRESHOLD
+  );
+
+  sheet.columns = [
+    { header: h.date, key: 'date', width: 12 },
+    { header: h.issuer, key: 'issuer', width: 25 },
+    { header: h.description, key: 'description', width: 30 },
+    { header: h.total, key: 'total', width: 15 },
+    { header: h.category, key: 'category', width: 15 },
+    { header: h.depreciation_method, key: 'method', width: 28 },
+    { header: h.depreciation_note, key: 'note', width: 30 },
+  ];
+
+  // Style header - purple to distinguish from other sheets
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF7C3AED' }, // Purple
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  // Helper to determine depreciation method suggestion
+  const getDepreciationMethod = (amount: number): string => {
+    const now = new Date();
+    const thresholdChangeDate = new Date(DEPRECIATION_THRESHOLDS.THRESHOLD_CHANGE_DATE);
+
+    // Determine current special rule limit
+    const currentLimit = now < thresholdChangeDate
+      ? DEPRECIATION_THRESHOLDS.IMMEDIATE_EXPENSE_LIMIT_CURRENT
+      : DEPRECIATION_THRESHOLDS.IMMEDIATE_EXPENSE_LIMIT_FUTURE;
+
+    if (amount <= currentLimit) {
+      return h.depreciation_immediate;
+    }
+
+    if (amount <= 200000) {
+      return h.depreciation_lumpsum;
+    }
+
+    return h.depreciation_standard;
+  };
+
+  // Add data rows
+  highValueReceipts.forEach((receipt) => {
+    const amount = receipt.extractedData.totalAmount;
+    const now = new Date();
+    const thresholdChangeDate = new Date(DEPRECIATION_THRESHOLDS.THRESHOLD_CHANGE_DATE);
+    const currentLimit = now < thresholdChangeDate
+      ? DEPRECIATION_THRESHOLDS.IMMEDIATE_EXPENSE_LIMIT_CURRENT
+      : DEPRECIATION_THRESHOLDS.IMMEDIATE_EXPENSE_LIMIT_FUTURE;
+
+    sheet.addRow({
+      date: formatDate(receipt.extractedData.transactionDate),
+      issuer: receipt.extractedData.issuerName,
+      description: receipt.extractedData.description,
+      total: amount,
+      category: receipt.extractedData.suggestedCategory,
+      method: getDepreciationMethod(amount),
+      note: amount > currentLimit ? h.depreciation_register_required : '',
+    });
+  });
+
+  // Format currency column
+  const totalCol = sheet.getColumn('total');
+  totalCol.numFmt = '¥#,##0';
+  totalCol.alignment = { horizontal: 'right' };
+
+  // Add summary row at bottom if there are high-value items
+  if (highValueReceipts.length > 0) {
+    const totalAmount = highValueReceipts.reduce(
+      (sum, r) => sum + r.extractedData.totalAmount,
+      0
+    );
+
+    // Add empty row
+    sheet.addRow({});
+
+    // Add total row
+    const totalRow = sheet.addRow({
+      date: '',
+      issuer: '',
+      description: h.grand_total,
+      total: totalAmount,
+      category: '',
+      method: `${highValueReceipts.length}${h.count === '件数' ? '件' : ' items'}`,
+      note: '',
+    });
+    totalRow.font = { bold: true };
+    totalRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF3F4F6' },
+    };
+  }
+
+  // Add note about threshold changes at bottom
+  const noteRowNum = sheet.rowCount + 2;
+  sheet.getCell(noteRowNum, 1).value = h.depreciation_header_note;
+  sheet.getCell(noteRowNum, 1).font = { italic: true, color: { argb: 'FF6B7280' } };
+  sheet.mergeCells(noteRowNum, 1, noteRowNum, 7);
+
+  // Add borders to data cells (header + data rows, not the note)
+  const dataRowCount = highValueReceipts.length + 1 + (highValueReceipts.length > 0 ? 2 : 0);
+  for (let rowNum = 1; rowNum <= dataRowCount; rowNum++) {
+    const row = sheet.getRow(rowNum);
+    row.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    });
   }
 
   // Freeze header row

@@ -45,6 +45,34 @@ export class ReceiptDatabase extends Dexie {
       // Upload queue table
       uploadQueue: 'id, createdAt, status, receiptId',
     });
+
+    // Version 3: Migrate category 損害保険料 → 保険料
+    // This handles the category rename without changing the schema
+    this.version(3).stores({
+      receipts: `
+        id,
+        createdAt,
+        [extractedData.transactionDate],
+        [extractedData.suggestedCategory],
+        processingStatus,
+        needsReview,
+        [extractedData.tNumber]
+      `,
+      images: 'id',
+      batches: 'id, createdAt, status',
+      uploadQueue: 'id, createdAt, status, receiptId',
+    }).upgrade(async (tx) => {
+      // Migrate existing receipts with 損害保険料 to 保険料
+      const receipts = await tx.table('receipts').toArray();
+      for (const receipt of receipts) {
+        if (receipt.extractedData?.suggestedCategory === '損害保険料') {
+          await tx.table('receipts').update(receipt.id, {
+            'extractedData.suggestedCategory': '保険料',
+            updatedAt: new Date(),
+          });
+        }
+      }
+    });
   }
 }
 

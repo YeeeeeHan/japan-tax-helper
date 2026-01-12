@@ -1,4 +1,13 @@
 import type { ExtractedData } from '@/types/receipt';
+import { EQUIPMENT_THRESHOLD, DEPRECIATION_THRESHOLDS } from '@/lib/utils/constants';
+
+/**
+ * Structured validation warning for translation support
+ */
+export type ValidationWarning = {
+  type: 'tnumber_missing' | 'tax_calculation_mismatch' | 'total_amount_mismatch' | 'equipment_threshold_suggestion';
+  params?: Record<string, string | number>;
+};
 
 /**
  * Validate T-Number format (T + 13 digits)
@@ -83,10 +92,10 @@ export function validateTaxRates(data: ExtractedData): {
 export function validateReceiptData(data: ExtractedData): {
   isValid: boolean;
   errors: string[];
-  warnings: string[];
+  warnings: ValidationWarning[];
 } {
   const errors: string[] = [];
-  const warnings: string[] = [];
+  const warnings: ValidationWarning[] = [];
 
   // Required fields check
   if (!data.issuerName) {
@@ -107,19 +116,28 @@ export function validateReceiptData(data: ExtractedData): {
       errors.push('Invalid T-Number format. Must be T followed by 13 digits');
     }
   } else {
-    warnings.push('T-Number is missing. This receipt may not be compliant with 適格請求書 requirements');
+    warnings.push({ type: 'tnumber_missing' });
   }
 
   // Tax calculation validation
   const taxCalcResult = validateTaxCalculation(data);
   if (!taxCalcResult.isValid && taxCalcResult.error) {
-    warnings.push(taxCalcResult.error);
+    const calculatedTax = data.taxBreakdown.reduce((sum, tb) => sum + tb.taxAmount, 0);
+    const expectedTax = data.totalAmount - data.subtotalExcludingTax;
+    warnings.push({
+      type: 'tax_calculation_mismatch',
+      params: { expected: expectedTax, actual: calculatedTax },
+    });
   }
 
   // Tax breakdown totals validation
   const taxTotalsResult = validateTaxBreakdownTotals(data);
   if (!taxTotalsResult.isValid && taxTotalsResult.error) {
-    warnings.push(taxTotalsResult.error);
+    const calculatedTotal = data.taxBreakdown.reduce((sum, tb) => sum + tb.total, 0);
+    warnings.push({
+      type: 'total_amount_mismatch',
+      params: { expected: data.totalAmount, actual: calculatedTotal },
+    });
   }
 
   // Tax rates validation
@@ -160,4 +178,88 @@ export function needsReview(
   if (validationResult.warnings.length > 0) return true;
 
   return false;
+}
+
+/**
+ * Check if receipt should be suggested as 工具器具備品 based on amount threshold
+ * Returns true if amount >= ¥100,000 and category is 消耗品費 (or related)
+ *
+ * Per Japanese tax law:
+ * - Items < ¥100,000: Can be expensed immediately as 消耗品費
+ * - Items >= ¥100,000: Must be treated as fixed assets (工具器具備品) requiring depreciation
+ */
+export function shouldSuggestEquipmentCategory(data: ExtractedData): boolean {
+  // Only suggest upgrade if amount is >= ¥100,000
+  if (data.totalAmount < EQUIPMENT_THRESHOLD) {
+    return false;
+  }
+
+  // Suggest upgrade if current category is 消耗品費 (consumables)
+  if (data.suggestedCategory === '消耗品費') {
+    return true;
+  }
+
+  // Also suggest for uncategorized items with high-value equipment indicators
+  if (data.suggestedCategory === '未分類') {
+    const equipmentKeywords = ['PC', 'パソコン', 'タブレット', 'iPad', 'MacBook', 'モニター', 'プリンター', 'デスク', '椅子'];
+    const description = (data.description || '').toLowerCase();
+    return equipmentKeywords.some(kw => description.toLowerCase().includes(kw.toLowerCase()));
+  }
+
+  return false;
+}
+
+/**
+ * Get the depreciation method note based on amount and current date
+ * Returns appropriate depreciation guidance based on 少額減価償却資産の特例 thresholds
+ */
+export function getDepreciationNote(amount: number): {
+  method: 'immediate' | 'lumpsum' | 'standard';
+  note: string;
+  requiresRegistration: boolean;
+} | null {
+  if (amount < EQUIPMENT_THRESHOLD) {
+    return null; // No depreciation needed
+  }
+
+  const now = new Date();
+  const thresholdChangeDate = new Date(DEPRECIATION_THRESHOLDS.THRESHOLD_CHANGE_DATE);
+
+  // Determine current special rule limit
+  const currentLimit = now < thresholdChangeDate
+    ? DEPRECIATION_THRESHOLDS.IMMEDIATE_EXPENSE_LIMIT_CURRENT
+    : DEPRECIATION_THRESHOLDS.IMMEDIATE_EXPENSE_LIMIT_FUTURE;
+
+  if (amount <= currentLimit) {
+    // Can use 少額減価償却資産の特例 (immediate expensing for blue form filers)
+    const limitText = now < thresholdChangeDate ? '30万円以下・2026年3月まで' : '40万円以下';
+    return {
+      method: 'immediate',
+      note: `少額減価償却資産の特例対象（${limitText}）`,
+      requiresRegistration: false,
+    };
+  }
+
+  if (amount <= 200000) {
+    // Can use 一括償却資産 (3-year lump-sum depreciation)
+    return {
+      method: 'lumpsum',
+      note: '一括償却資産（3年均等償却）',
+      requiresRegistration: false,
+    };
+  }
+
+  // Standard depreciation required
+  return {
+    method: 'standard',
+    note: '通常減価償却（耐用年数による）',
+    requiresRegistration: true,
+  };
+}
+
+/**
+ * Check if a receipt is a high-value asset requiring depreciation treatment
+ */
+export function isDepreciationEligible(data: ExtractedData): boolean {
+  return data.totalAmount >= EQUIPMENT_THRESHOLD;
 }

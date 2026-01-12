@@ -133,25 +133,97 @@ Other items (10%):    ¥2,000  →  Tax: ¥200  →  Total: ¥2,200
 
 ## Expense Categories for 個人事業主 (Individual Business Owners)
 
-### Standard Categories
+### Tier 1: Essential Categories (必須カテゴリ)
 
-Based on 確定申告 (tax return) requirements:
+These cover ~90% of typical business receipts:
 
-| Category | Japanese | Common Examples |
-|----------|----------|----------------|
-| Travel & Transportation | 旅費交通費 | タクシー、電車、飛行機、ホテル、駐車場 |
-| Entertainment | 交際費 | 飲食、接待、ギフト |
-| Consumables | 消耗品費 | 文具、事務用品、備品（<¥100,000） |
-| Communication | 通信費 | 携帯、電話、インターネット |
-| Utilities | 水道光熱費 | 電気、ガス、水道 |
-| Advertising | 広告宣伝費 | 広告、マーケティング、SNS広告 |
-| Insurance | 損害保険料 | 火災保険、自動車保険、損保 |
-| Taxes & Dues | 租税公課 | 印紙、切手、税金、手数料 |
-| Rent | 地代家賃 | 家賃、事務所賃料 |
-| Outsourcing | 外注費 | 業務委託、外部委託費用 |
-| Meetings | 会議費 | 会議室代、セミナー参加費 |
-| Training | 研修費 | 研修、教育、スクール |
-| Books & Publications | 新聞図書費 | 新聞、書籍、雑誌 |
+| Japanese (勘定科目) | English | Common Examples (主な例) |
+|---------------------|---------|--------------------------|
+| 旅費交通費 | Travel & Transportation | 電車、タクシー、出張交通費、飛行機、ホテル |
+| 通信費 | Communication Expenses | 業務用携帯、SIM、通話料、インターネット |
+| 消耗品費 | Office Supplies | 文房具、ケーブル、**10万円未満の機器** |
+| 新聞図書費 | Books & Subscriptions | 書籍、判例DB、オンライン資料、雑誌 |
+| 研修費 | Training & Education | セミナー、研修参加費、スクール |
+| 支払手数料 | Professional & Association Fees | 弁護士会費、各種登録料、銀行手数料 |
+| 交際費 | Entertainment Expenses | 業務上の会食・接待、ギフト |
+| 会議費 | Meeting Expenses | 会議用飲食（軽食等）、会議室代 |
+
+### Tier 2: Secondary Categories (準必須カテゴリ)
+
+Commonly needed depending on business type:
+
+| Japanese (勘定科目) | English | Common Examples (主な例) |
+|---------------------|---------|--------------------------|
+| 外注費 | Outsourcing Fees | 翻訳、調査委託、業務委託 |
+| 広告宣伝費 | Advertising & Marketing | 名刺、HP制作、広報、SNS広告 |
+| 地代家賃 | Rent | 事務所賃料（按分）、家賃 |
+| 水道光熱費 | Utilities | 電気・水道（按分）、ガス |
+| 修繕費 | Repairs & Maintenance | PC修理、備品修理 |
+| 保険料 | Insurance Premiums | 業務賠償保険、火災保険 |
+| 租税公課 | Taxes & Public Dues | 印紙税、登録免許税、収入印紙 |
+| 雑費 | Miscellaneous Expenses | 他に分類しにくい支出 |
+
+### Tier 3: High-Value Items & Depreciation (減価償却関連)
+
+**⚠️ IMPORTANT: Items ≥¥100,000 require special treatment**
+
+| Japanese (勘定科目) | English | Common Examples (主な例) |
+|---------------------|---------|--------------------------|
+| 工具器具備品 | Office Equipment | PC、タブレット、周辺機器（10万円以上） |
+| 減価償却費 | Depreciation Expense | 年度ごとの償却額 |
+
+---
+
+## High-Value Asset Rules (高額資産の処理)
+
+### ¥100,000 Threshold (10万円基準)
+
+This is a **critical threshold** in Japanese tax law:
+
+| Asset Value | Treatment | Category |
+|-------------|-----------|----------|
+| < ¥100,000 | Immediate expense (全額経費) | 消耗品費 |
+| ≥ ¥100,000 | Depreciation required | 工具器具備品 → 減価償却費 |
+
+**Examples:**
+- ¥50,000 laptop → 消耗品費 (immediate expense)
+- ¥200,000 MacBook Pro → 工具器具備品 (depreciate over useful life)
+
+### Three Depreciation Approaches
+
+#### 1. Standard Depreciation (通常の減価償却)
+- **For items ≥ ¥100,000**
+- Depreciate over useful life (耐用年数)
+- Individual business owners use 定額法 (straight-line) by default
+- Example: PC with 4-year useful life → ¥50,000/year for ¥200,000 asset
+
+#### 2. Lump-Sum Depreciation (一括償却資産)
+- **For items ¥100,000 - ¥199,999**
+- Depreciate evenly over 3 years (1/3 each year)
+- Advantage: Not subject to 償却資産税 (depreciation asset tax)
+
+#### 3. Small-Scale Asset Special Rule (少額減価償却資産の特例)
+- **For Blue Form (青色申告) filers only**
+- Current threshold: < ¥300,000 (until March 2026)
+- **New threshold from April 2026: < ¥400,000**
+- Can expense immediately (like 消耗品費)
+- Annual limit: ¥3,000,000 total
+- Must note "措法28の2" in 摘要 column
+
+### Tax Reform Update (令和8年度税制改正)
+
+**Effective April 2026:**
+| Item | Current (〜March 2026) | After April 2026 |
+|------|------------------------|------------------|
+| Small asset threshold | ¥300,000 | **¥400,000** |
+| Annual limit | ¥3,000,000 | ¥3,000,000 |
+| Special rule expiry | March 2026 | **March 2029** |
+
+### Important Notes
+
+1. **Set purchases**: If buying items as a set (e.g., desk + chair), combine values
+2. **Installation costs**: Include setup/installation in asset value
+3. **Tax accounting method matters**: ¥100,000 threshold based on 税込/税抜 method used
 
 ### Categorization Tips
 
@@ -323,19 +395,28 @@ required = [
 
 3. **Freee (Competitor)**
    - [Expense Categories Guide](https://www.freee.co.jp/kb/kb-blue-return/account-title/)
+   - [Tool Expense Categories](https://www.freee.co.jp/kb/kb-journal/tool/)
 
 4. **Yayoi**
    - [Individual Business Expenses](https://www.yayoi-kk.co.jp/shinkoku/oyakudachi/kojin-keihi/)
+   - [Small-Scale Asset Special Rule](https://www.yayoi-kk.co.jp/shinkoku/aoiroshinkoku/oyakudachi/shogakugenkashokyakushisan/)
+
+5. **MoneyForward**
+   - [Depreciation Rules](https://biz.moneyforward.com/accounting/basic/65238/)
+   - [Meeting vs Entertainment Expenses](https://biz.moneyforward.com/accounting/basic/45437/)
+
+6. **中小企業庁 (SME Agency)**
+   - [Small-Scale Asset Special Rule](https://www.chusho.meti.go.jp/zaimu/zeisei/tokurei/syougaku_shisan.html)
 
 ### Third-Party Guides
 
-5. **EU-Japan Centre**
+7. **EU-Japan Centre**
    - [Qualified Invoice System](https://www.eu-japan.eu/qualified-invoice-system)
 
-6. **Stripe**
+8. **Stripe**
    - [Qualified Invoices in Japan](https://stripe.com/resources/more/qualified-invoices-in-japan)
 
-7. **Tax Offices**
+9. **Tax Offices**
    - [Kaku Asumi Tax Office](https://en.zeirishi-kakuasumi.com/japans-qualified-invoice-system-and-t-number-registration-for-businesses/)
 
 ---
@@ -345,9 +426,12 @@ required = [
 | Date | Event |
 |------|-------|
 | Oct 1, 2023 | Qualified Invoice System begins |
+| Mar 31, 2026 | Current 少額減価償却 special rule expires (¥300,000 threshold) |
+| Apr 1, 2026 | New 少額減価償却 threshold: ¥400,000 |
 | Sep 30, 2026 | 80% transition credit ends → drops to 50% |
+| Mar 16, 2027 | Tax filing deadline for 2026 income |
 | Sep 30, 2029 | All transition credits end → 0% for non-registered |
-| Mar 15, 2027 | Tax filing deadline for 2026 income |
+| Mar 31, 2029 | Extended 少額減価償却 special rule expiry |
 
 ---
 
@@ -373,5 +457,5 @@ required = [
 
 ---
 
-**Last Updated**: January 11, 2026
-**Next Review**: Before Sep 30, 2026 (transition deadline)
+**Last Updated**: January 12, 2026
+**Next Review**: Before Mar 31, 2026 (少額減価償却 threshold change)
