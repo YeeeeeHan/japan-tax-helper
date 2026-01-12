@@ -6,7 +6,10 @@
       "Bash(ls:*)",
       "Bash(npm install:*)",
       "Bash(curl:*)",
-      "Bash(kill:*)"
+      "Bash(kill:*)",
+      "WebSearch",
+      "WebFetch(domain:ui-patterns.com)",
+      "WebFetch(domain:www.magictoolbox.com)"
     ]
   }
 }

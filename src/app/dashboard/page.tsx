@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Settings, FileDown, Trash2, Save, X, CheckCircle2, AlertCircle, Sparkles, Plus, ChevronUp, ChevronDown, Upload, ClipboardCheck, Download, AlertTriangle, ArrowLeft, RotateCw, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { Search, Settings, FileDown, Trash2, X, CheckCircle2, AlertCircle, Sparkles, Plus, ChevronUp, ChevronDown, Upload, ClipboardCheck, Download, ArrowLeft, RotateCw, RotateCcw, Maximize2 } from 'lucide-react';
 import { getReceipts, updateReceipt, deleteReceipt, getReceiptCounts, bulkUpdateReceipts } from '@/lib/db/operations';
 import { getImageUrl } from '@/lib/storage/images';
 import { exportToExcel } from '@/lib/export/excel';
@@ -28,16 +28,12 @@ export default function DashboardPage() {
   const [isExporting, setIsExporting] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const receiptRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
   // Store rotation per receipt ID (persists across receipt selection)
   const [rotationMap, setRotationMap] = useState<Map<string, number>>(new Map());
-  const [imageZoom, setImageZoom] = useState(1);
 
-  // Magnifying glass state
-  const [isHovering, setIsHovering] = useState(false);
-  const [lensPosition, setLensPosition] = useState({ x: 0, y: 0 });
-  const [backgroundPosition, setBackgroundPosition] = useState({ x: 0, y: 0 });
-  const imageContainerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Get current rotation for selected receipt
   const imageRotation = selectedReceipt ? (rotationMap.get(selectedReceipt.id) ?? 0) : 0;
@@ -54,31 +50,29 @@ export default function DashboardPage() {
     });
   };
 
-  // Reset only zoom when selecting a new receipt (rotation persists)
+  // Close fullscreen on escape
   useEffect(() => {
-    setImageZoom(1);
-    setIsHovering(false);
-  }, [selectedReceipt?.id]);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
-  // Magnifying glass configuration
-  const LENS_SIZE = 220; // Size of the magnifying lens
-  const ZOOM_LEVEL = 2.5; // Magnification level for the lens
-
-  // Helper to get field confidence status for styling - simplified to two states
+  // Helper to get field confidence status for styling
   const getFieldConfidenceStatus = (receipt: Receipt, fieldName: string): 'ok' | 'attention' => {
     const confidence = receipt.confidence?.fields?.[fieldName as keyof typeof receipt.confidence.fields];
-
-    // Special case for T-Number - if missing, it needs attention
     if (fieldName === 'tNumber' && !receipt.extractedData.tNumber) {
       return 'attention';
     }
-
     if (confidence === undefined) return 'attention';
     if (confidence >= 0.9) return 'ok';
     return 'attention';
   };
 
-  // Get input field styling based on confidence - standardized to amber for attention
+  // Get input field styling based on confidence
   const getFieldInputClassName = (receipt: Receipt, fieldName: string, baseClass: string = '') => {
     const status = getFieldConfidenceStatus(receipt, fieldName);
     const statusStyles = {
@@ -88,7 +82,7 @@ export default function DashboardPage() {
     return `${baseClass} ${statusStyles[status]}`;
   };
 
-  // Get confidence indicator icon for a field - simplified to two states
+  // Get confidence indicator icon for a field
   const FieldConfidenceIndicator = ({ receipt, fieldName }: { receipt: Receipt; fieldName: string }) => {
     const status = getFieldConfidenceStatus(receipt, fieldName);
     const confidence = receipt.confidence?.fields?.[fieldName as keyof typeof receipt.confidence.fields];
@@ -109,11 +103,8 @@ export default function DashboardPage() {
   };
 
   // Helper to get review reason for a specific field
-  // Returns the reason string if the field needs attention, null otherwise
   const getFieldReviewReason = (receipt: Receipt, fieldName: string): string | null => {
     const confidence = receipt.confidence?.fields?.[fieldName as keyof typeof receipt.confidence.fields];
-
-    // Check if field needs attention (same logic as getFieldConfidenceStatus)
     const needsAttention = (() => {
       if (fieldName === 'tNumber' && !receipt.extractedData.tNumber) return true;
       if (confidence === undefined) return true;
@@ -122,7 +113,6 @@ export default function DashboardPage() {
 
     if (!needsAttention) return null;
 
-    // Return appropriate reason based on field
     const isMissing = fieldName === 'tNumber' && !receipt.extractedData.tNumber;
 
     switch (fieldName) {
@@ -141,17 +131,11 @@ export default function DashboardPage() {
     }
   };
 
-  // Check if any field needs review
-  const hasFieldsNeedingReview = (receipt: Receipt): boolean => {
-    const fields = ['tNumber', 'totalAmount', 'category', 'issuerName', 'transactionDate'];
-    return fields.some(field => getFieldReviewReason(receipt, field) !== null);
-  };
-
   // Workflow step calculation
   const getWorkflowStep = () => {
-    if (counts.total === 0) return 1; // Upload step
-    if (counts.needsReview > 0) return 2; // Review step
-    return 3; // Export step
+    if (counts.total === 0) return 1;
+    if (counts.needsReview > 0) return 2;
+    return 3;
   };
   const workflowStep = getWorkflowStep();
   const canExport = counts.total > 0 && counts.needsReview === 0;
@@ -193,55 +177,10 @@ export default function DashboardPage() {
     }
   }, [selectedReceipt]);
 
-  // Handle magnifying glass mouse move
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!imageContainerRef.current || !imageRef.current) return;
-
-    const container = imageContainerRef.current;
-    const image = imageRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const imageRect = image.getBoundingClientRect();
-
-    // Get mouse position relative to container
-    const mouseX = e.clientX - containerRect.left;
-    const mouseY = e.clientY - containerRect.top;
-
-    // Calculate lens position (centered on cursor)
-    const lensX = mouseX - LENS_SIZE / 2;
-    const lensY = mouseY - LENS_SIZE / 2;
-
-    // Calculate position relative to the image
-    const imageOffsetX = imageRect.left - containerRect.left;
-    const imageOffsetY = imageRect.top - containerRect.top;
-
-    // Mouse position relative to image
-    const relativeX = e.clientX - imageRect.left;
-    const relativeY = e.clientY - imageRect.top;
-
-    // Calculate background position for the zoomed lens
-    // We need to show the magnified portion of the image
-    const bgX = (relativeX / imageRect.width) * 100;
-    const bgY = (relativeY / imageRect.height) * 100;
-
-    setLensPosition({ x: lensX, y: lensY });
-    setBackgroundPosition({ x: bgX, y: bgY });
-  }, [LENS_SIZE]);
-
-  // Check if mouse is over the actual image (not just container)
-  const handleMouseEnter = useCallback(() => {
-    setIsHovering(true);
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    setIsHovering(false);
-  }, []);
-
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!receipts.length) return;
-
-      // Don't handle if user is typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) {
         return;
       }
@@ -269,7 +208,6 @@ export default function DashboardPage() {
 
       if (nextReceipt) {
         setSelectedReceipt(nextReceipt);
-        // Scroll the item into view
         const element = receiptRefs.current.get(nextReceipt.id);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -293,7 +231,6 @@ export default function DashboardPage() {
     await loadReceipts();
     await loadCounts();
 
-    // Move to next receipt after save
     const currentIndex = receipts.findIndex(r => r.id === selectedReceipt.id);
     if (currentIndex < receipts.length - 1) {
       setSelectedReceipt(receipts[currentIndex + 1]);
@@ -334,13 +271,11 @@ export default function DashboardPage() {
     const confirmMessage = t('bulk_delete_confirm', { count: selectedIds.size });
     if (!confirm(confirmMessage)) return;
 
-    // Delete all selected receipts
     const idsToDelete = Array.from(selectedIds);
     for (const id of idsToDelete) {
       await deleteReceipt(id);
     }
 
-    // Clear selection and refresh
     if (selectedReceipt && selectedIds.has(selectedReceipt.id)) {
       setSelectedReceipt(null);
     }
@@ -355,7 +290,6 @@ export default function DashboardPage() {
 
     try {
       setIsExporting(true);
-      // Get ALL receipts (no filters) for export
       const allReceipts = await getReceipts();
       await exportToExcel(allReceipts, language);
     } catch (error) {
@@ -396,7 +330,7 @@ export default function DashboardPage() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
-      {/* Header - Fixed */}
+      {/* Header */}
       <header className="flex-shrink-0 bg-white border-b border-gray-200">
         <div className="px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -415,7 +349,6 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-3">
               <LanguageSwitcher />
-
               <button className="hidden sm:block p-2 hover:bg-gray-100 rounded-lg">
                 <Settings className="w-5 h-5 text-gray-600" />
               </button>
@@ -452,11 +385,10 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Workflow Progress Bar - Fixed */}
+      {/* Workflow Progress Bar */}
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between">
-            {/* Step 1: Upload */}
             <div className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 workflowStep >= 1 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
@@ -469,13 +401,7 @@ export default function DashboardPage() {
                 {t('workflow_upload')}
               </span>
             </div>
-
-            {/* Connector */}
-            <div className={`flex-1 h-1 mx-2 sm:mx-4 rounded ${
-              workflowStep > 1 ? 'bg-green-500' : 'bg-gray-200'
-            }`} />
-
-            {/* Step 2: Review */}
+            <div className={`flex-1 h-1 mx-2 sm:mx-4 rounded ${workflowStep > 1 ? 'bg-green-500' : 'bg-gray-200'}`} />
             <div className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 workflowStep > 2 ? 'bg-green-500 text-white' : workflowStep === 2 ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500'
@@ -491,13 +417,7 @@ export default function DashboardPage() {
                 )}
               </span>
             </div>
-
-            {/* Connector */}
-            <div className={`flex-1 h-1 mx-2 sm:mx-4 rounded ${
-              workflowStep > 2 ? 'bg-green-500' : 'bg-gray-200'
-            }`} />
-
-            {/* Step 3: Export */}
+            <div className={`flex-1 h-1 mx-2 sm:mx-4 rounded ${workflowStep > 2 ? 'bg-green-500' : 'bg-gray-200'}`} />
             <div className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 workflowStep === 3 ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-500'
@@ -554,6 +474,80 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Fullscreen Image Modal */}
+      {isFullscreen && selectedImageUrl && (
+        <div
+          className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center"
+          onClick={() => setIsFullscreen(false)}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setIsFullscreen(false)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-10"
+            title={t('image_exit_fullscreen')}
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Receipt info */}
+          {selectedReceipt && (
+            <div className="absolute top-4 left-4 px-4 py-2 bg-black/60 backdrop-blur-sm rounded-lg text-white text-sm">
+              <div className="font-medium">{selectedReceipt.extractedData.issuerName}</div>
+              <div className="text-white/70 text-xs">{formatDate(selectedReceipt.extractedData.transactionDate)}</div>
+            </div>
+          )}
+
+          {/* Image */}
+          <div
+            className="relative w-full h-full flex items-center justify-center overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={selectedImageUrl}
+              alt="Receipt"
+              className="max-w-[90vw] max-h-[85vh] object-contain"
+              style={{ transform: `rotate(${imageRotation}deg)` }}
+              draggable={false}
+            />
+          </div>
+
+          {/* Fullscreen toolbar - rotation only */}
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-4 py-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); setImageRotation(r => r - 90); }}
+              className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
+              title={t('image_rotate_left')}
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setImageRotation(r => r + 90); }}
+              className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
+              title={t('image_rotate_right')}
+            >
+              <RotateCw className="w-5 h-5" />
+            </button>
+            {imageRotation !== 0 && (
+              <>
+                <div className="w-px h-5 bg-white/30" />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setImageRotation(0); }}
+                  className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
+                  title={t('image_reset')}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Keyboard hint */}
+          <div className="absolute bottom-6 right-6 text-white/50 text-xs hidden sm:block">
+            ESC {t('image_exit_fullscreen')}
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left sidebar - Receipt list */}
         <div ref={listContainerRef} className="w-full lg:w-1/3 xl:w-1/4 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0">
@@ -571,15 +565,13 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Filter tabs - Compact */}
+          {/* Filter tabs */}
           <div className="px-3 py-2 border-b border-gray-200 space-y-2">
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setFilter('all')}
                 className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
-                  filter === 'all'
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                  filter === 'all' ? 'bg-primary-100 text-primary-700' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 {t('filter_all')} ({counts.total})
@@ -587,9 +579,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => setFilter('needsReview')}
                 className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
-                  filter === 'needsReview'
-                    ? 'bg-red-100 text-red-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                  filter === 'needsReview' ? 'bg-red-100 text-red-700' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
@@ -598,9 +588,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => setFilter('done')}
                 className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
-                  filter === 'done'
-                    ? 'bg-green-100 text-green-700'
-                    : 'text-gray-600 hover:bg-gray-100'
+                  filter === 'done' ? 'bg-green-100 text-green-700' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
@@ -608,7 +596,7 @@ export default function DashboardPage() {
               </button>
             </div>
 
-            {/* Bulk actions bar - Compact */}
+            {/* Bulk actions bar */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <button
@@ -651,15 +639,14 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* Keyboard hint */}
             <p className="text-xs text-gray-400 hidden lg:block">
               {t('dashboard_keyboard_hint')}
             </p>
           </div>
 
-          {/* Receipt list - Compact */}
+          {/* Receipt list */}
           <div className="divide-y divide-gray-100">
-            {receipts.map((receipt, index) => (
+            {receipts.map((receipt) => (
               <div
                 key={receipt.id}
                 ref={(el) => {
@@ -773,74 +760,28 @@ export default function DashboardPage() {
                     <ChevronDown className="w-5 h-5" />
                   </button>
                 </div>
-{/* Removed subtle text - now using prominent banner below */}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left: Image viewer with magnifying glass */}
+                {/* Left: Simple image viewer with rotate + fullscreen */}
                 <div
-                  ref={imageContainerRef}
-                  className="bg-gray-900 rounded-xl overflow-hidden relative cursor-zoom-in"
+                  className="bg-gray-900 rounded-xl overflow-hidden relative"
                   style={{ height: '500px' }}
-                  onMouseMove={handleMouseMove}
-                  onMouseEnter={handleMouseEnter}
-                  onMouseLeave={handleMouseLeave}
                 >
                   {selectedImageUrl && (
                     <div className="w-full h-full flex items-center justify-center overflow-hidden">
                       <img
-                        ref={imageRef}
                         src={selectedImageUrl}
                         alt="Receipt"
                         className="max-w-full max-h-full object-contain transition-transform duration-200"
-                        style={{
-                          transform: `rotate(${imageRotation}deg) scale(${imageZoom})`,
-                        }}
+                        style={{ transform: `rotate(${imageRotation}deg)` }}
                         draggable={false}
                       />
                     </div>
                   )}
 
-                  {/* Magnifying glass lens - appears on hover */}
-                  {isHovering && selectedImageUrl && (
-                    <div
-                      className="absolute pointer-events-none rounded-full border-4 border-white shadow-2xl overflow-hidden"
-                      style={{
-                        width: LENS_SIZE,
-                        height: LENS_SIZE,
-                        left: lensPosition.x,
-                        top: lensPosition.y,
-                        backgroundImage: `url(${selectedImageUrl})`,
-                        backgroundSize: `${ZOOM_LEVEL * 100}%`,
-                        backgroundPosition: `${backgroundPosition.x}% ${backgroundPosition.y}%`,
-                        backgroundRepeat: 'no-repeat',
-                        transform: `rotate(${imageRotation}deg)`,
-                        zIndex: 10,
-                      }}
-                    >
-                      {/* Crosshair in center of lens */}
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-0.5 h-4 bg-white/50"></div>
-                      </div>
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-4 h-0.5 bg-white/50"></div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Hover hint - show when not hovering */}
-                  {!isHovering && selectedImageUrl && (
-                    <div className="absolute top-3 left-1/2 transform -translate-x-1/2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-white text-xs flex items-center gap-2 opacity-70">
-                      <ZoomIn className="w-3 h-3" />
-                      <span>{t('image_hover_to_zoom')}</span>
-                    </div>
-                  )}
-
-                  {/* Image manipulation toolbar */}
-                  <div
-                    className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-2"
-                    onMouseEnter={() => setIsHovering(false)}
-                  >
+                  {/* Simple toolbar - rotate + fullscreen only */}
+                  <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-2">
                     <button
                       onClick={() => setImageRotation(r => r - 90)}
                       className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
@@ -857,23 +798,12 @@ export default function DashboardPage() {
                     </button>
                     <div className="w-px h-4 bg-white/30" />
                     <button
-                      onClick={() => setImageZoom(z => Math.max(0.5, z - 0.25))}
+                      onClick={() => setIsFullscreen(true)}
                       className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
-                      title={t('image_zoom_out')}
+                      title={t('image_fullscreen')}
                     >
-                      <ZoomOut className="w-4 h-4" />
+                      <Maximize2 className="w-4 h-4" />
                     </button>
-                    <span className="text-white text-xs min-w-[3rem] text-center">
-                      {Math.round(imageZoom * 100)}%
-                    </span>
-                    <button
-                      onClick={() => setImageZoom(z => Math.min(3, z + 0.25))}
-                      className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
-                      title={t('image_zoom_in')}
-                    >
-                      <ZoomIn className="w-4 h-4" />
-                    </button>
-                    {/* Reset rotation button */}
                     {imageRotation !== 0 && (
                       <>
                         <div className="w-px h-4 bg-white/30" />
@@ -891,7 +821,7 @@ export default function DashboardPage() {
 
                 {/* Right: Editable form */}
                 <div className="space-y-4">
-                  {/* Prominent "Needs Review" Banner */}
+                  {/* Needs Review Banner */}
                   {selectedReceipt.needsReview && (
                     <div className="bg-amber-500 text-white px-4 py-3 rounded-lg flex items-center gap-3">
                       <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -908,14 +838,12 @@ export default function DashboardPage() {
                           {t('ai_complete')} - {t('ai_confidence', { confidence: ((selectedReceipt.confidence?.overall ?? 0) * 100).toFixed(0) })}
                         </span>
                       </div>
-                      {/* Dev-only: Show model/strategy used */}
                       {process.env.NODE_ENV === 'development' && selectedReceipt._dev?.strategy && (
                         <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-mono">
                           {selectedReceipt._dev.strategy}
                         </span>
                       )}
                     </div>
-                    {/* Dev-only: Show processing details */}
                     {process.env.NODE_ENV === 'development' && selectedReceipt._dev && (
                       <div className="mt-2 pt-2 border-t border-blue-200 flex items-center gap-4 text-xs text-blue-700">
                         {selectedReceipt._dev.processingTimeMs && (
@@ -941,14 +869,12 @@ export default function DashboardPage() {
                         )}
                       </div>
                     </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={editedData.issuerName}
-                        onChange={(e) => setEditedData({ ...editedData, issuerName: e.target.value })}
-                        className={`w-full px-3 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 ${getFieldInputClassName(selectedReceipt, 'issuerName')}`}
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      value={editedData.issuerName}
+                      onChange={(e) => setEditedData({ ...editedData, issuerName: e.target.value })}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${getFieldInputClassName(selectedReceipt, 'issuerName')}`}
+                    />
                   </div>
 
                   {/* Transaction Date */}
