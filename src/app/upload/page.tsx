@@ -432,8 +432,8 @@ export default function UploadPage() {
   };
 
   const goToDashboard = async () => {
-    // Clear completed uploads before navigating
-    await clearCompleted();
+    // Navigate to dashboard without clearing completed uploads
+    // Users can manually clear them if needed
     router.push('/dashboard');
   };
 
@@ -510,7 +510,7 @@ export default function UploadPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-                <FileImage className="w-6 h-6 text-white" />
+                <span className="text-white font-bold text-xl">税</span>
               </div>
               <h1 className="text-xl font-bold text-gray-900">
                 TaxHelper Japan
