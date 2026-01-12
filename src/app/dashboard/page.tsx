@@ -34,10 +34,10 @@ export default function DashboardPage() {
 
   // Magnifying glass state
   const [isHovering, setIsHovering] = useState(false);
+  const [lensPosition, setLensPosition] = useState({ x: 0, y: 0 });
   const [backgroundPosition, setBackgroundPosition] = useState({ x: 0, y: 0 });
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const previewRef = useRef<HTMLDivElement>(null);
 
   // Get current rotation for selected receipt
   const imageRotation = selectedReceipt ? (rotationMap.get(selectedReceipt.id) ?? 0) : 0;
@@ -61,6 +61,7 @@ export default function DashboardPage() {
   }, [selectedReceipt?.id]);
 
   // Magnifying glass configuration
+  const LENS_SIZE = 220; // Size of the magnifying lens
   const ZOOM_LEVEL = 2.5; // Magnification level for the lens
 
   // Helper to get field confidence status for styling - simplified to two states
@@ -192,59 +193,44 @@ export default function DashboardPage() {
     }
   }, [selectedReceipt]);
 
-  // Magnifying glass is disabled when image is rotated (coordinate transforms are complex)
-  const canUseMagnifier = imageRotation === 0;
-
   // Handle magnifying glass mouse move
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!canUseMagnifier || !imageContainerRef.current || !imageRef.current) return;
+    if (!imageContainerRef.current || !imageRef.current) return;
 
+    const container = imageContainerRef.current;
     const image = imageRef.current;
+    const containerRect = container.getBoundingClientRect();
     const imageRect = image.getBoundingClientRect();
 
-    // Mouse position relative to the displayed image
+    // Get mouse position relative to container
+    const mouseX = e.clientX - containerRect.left;
+    const mouseY = e.clientY - containerRect.top;
+
+    // Calculate lens position (centered on cursor)
+    const lensX = mouseX - LENS_SIZE / 2;
+    const lensY = mouseY - LENS_SIZE / 2;
+
+    // Calculate position relative to the image
+    const imageOffsetX = imageRect.left - containerRect.left;
+    const imageOffsetY = imageRect.top - containerRect.top;
+
+    // Mouse position relative to image
     const relativeX = e.clientX - imageRect.left;
     const relativeY = e.clientY - imageRect.top;
 
-    // Check if mouse is actually over the image (not just container background)
-    if (relativeX < 0 || relativeY < 0 || relativeX > imageRect.width || relativeY > imageRect.height) {
-      setIsHovering(false);
-      return;
-    }
+    // Calculate background position for the zoomed lens
+    // We need to show the magnified portion of the image
+    const bgX = (relativeX / imageRect.width) * 100;
+    const bgY = (relativeY / imageRect.height) * 100;
 
-    // Account for zoom when calculating position on original image
-    // imageRect already reflects the scaled size, so we just map to natural dimensions
-    // But we need to account for the fact that getBoundingClientRect includes the scale transform
-    const scaleX = image.naturalWidth / (imageRect.width / imageZoom);
-    const scaleY = image.naturalHeight / (imageRect.height / imageZoom);
-
-    // Adjust mouse position for zoom (find position relative to unscaled center)
-    const centerX = imageRect.width / 2;
-    const centerY = imageRect.height / 2;
-    const offsetFromCenterX = (relativeX - centerX) / imageZoom;
-    const offsetFromCenterY = (relativeY - centerY) / imageZoom;
-    const unscaledX = centerX + offsetFromCenterX;
-    const unscaledY = centerY + offsetFromCenterY;
-
-    // Map to original image coordinates
-    const originalX = (unscaledX / (imageRect.width / imageZoom)) * image.naturalWidth;
-    const originalY = (unscaledY / (imageRect.height / imageZoom)) * image.naturalHeight;
-
-    // Clamp to valid image bounds
-    const clampedX = Math.max(0, Math.min(image.naturalWidth, originalX));
-    const clampedY = Math.max(0, Math.min(image.naturalHeight, originalY));
-
-    setIsHovering(true);
-    setBackgroundPosition({ x: clampedX, y: clampedY });
-  }, [canUseMagnifier, imageZoom]);
+    setLensPosition({ x: lensX, y: lensY });
+    setBackgroundPosition({ x: bgX, y: bgY });
+  }, [LENS_SIZE]);
 
   // Check if mouse is over the actual image (not just container)
   const handleMouseEnter = useCallback(() => {
-    // Only enable if magnifier is allowed (not rotated)
-    if (canUseMagnifier) {
-      setIsHovering(true);
-    }
-  }, [canUseMagnifier]);
+    setIsHovering(true);
+  }, []);
 
   const handleMouseLeave = useCallback(() => {
     setIsHovering(false);
@@ -791,115 +777,112 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left: Image viewer with magnifying glass overlay */}
-                <div className="space-y-3">
-                  {/* Image container with magnified overlay */}
+                {/* Left: Image viewer with magnifying glass */}
+                <div
+                  ref={imageContainerRef}
+                  className="bg-gray-900 rounded-xl overflow-hidden relative cursor-zoom-in"
+                  style={{ height: '500px' }}
+                  onMouseMove={handleMouseMove}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  {selectedImageUrl && (
+                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                      <img
+                        ref={imageRef}
+                        src={selectedImageUrl}
+                        alt="Receipt"
+                        className="max-w-full max-h-full object-contain transition-transform duration-200"
+                        style={{
+                          transform: `rotate(${imageRotation}deg) scale(${imageZoom})`,
+                        }}
+                        draggable={false}
+                      />
+                    </div>
+                  )}
+
+                  {/* Magnifying glass lens - appears on hover */}
+                  {isHovering && selectedImageUrl && (
+                    <div
+                      className="absolute pointer-events-none rounded-full border-4 border-white shadow-2xl overflow-hidden"
+                      style={{
+                        width: LENS_SIZE,
+                        height: LENS_SIZE,
+                        left: lensPosition.x,
+                        top: lensPosition.y,
+                        backgroundImage: `url(${selectedImageUrl})`,
+                        backgroundSize: `${ZOOM_LEVEL * 100}%`,
+                        backgroundPosition: `${backgroundPosition.x}% ${backgroundPosition.y}%`,
+                        backgroundRepeat: 'no-repeat',
+                        transform: `rotate(${imageRotation}deg)`,
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* Crosshair in center of lens */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-0.5 h-4 bg-white/50"></div>
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-4 h-0.5 bg-white/50"></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hover hint - show when not hovering */}
+                  {!isHovering && selectedImageUrl && (
+                    <div className="absolute top-3 left-1/2 transform -translate-x-1/2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-white text-xs flex items-center gap-2 opacity-70">
+                      <ZoomIn className="w-3 h-3" />
+                      <span>{t('image_hover_to_zoom')}</span>
+                    </div>
+                  )}
+
+                  {/* Image manipulation toolbar */}
                   <div
-                    ref={imageContainerRef}
-                    className="bg-gray-900 rounded-xl overflow-hidden relative cursor-crosshair"
-                    style={{ height: '500px' }}
-                    onMouseMove={handleMouseMove}
-                    onMouseEnter={handleMouseEnter}
-                    onMouseLeave={handleMouseLeave}
+                    className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-full px-3 py-2"
+                    onMouseEnter={() => setIsHovering(false)}
                   >
-                    {selectedImageUrl && (
-                      <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                        <img
-                          ref={imageRef}
-                          src={selectedImageUrl}
-                          alt="Receipt"
-                          className="max-w-full max-h-full object-contain transition-transform duration-200"
-                          style={{
-                            transform: `rotate(${imageRotation}deg) scale(${imageZoom})`,
-                          }}
-                          draggable={false}
-                        />
-                      </div>
-                    )}
-
-                    {/* Magnified overlay - appears on top of image when hovering */}
-                    {isHovering && canUseMagnifier && selectedImageUrl && imageRef.current && (
-                      <div
-                        ref={previewRef}
-                        className="absolute inset-0 z-10 bg-gray-900 border-2 border-primary-500 pointer-events-none"
-                      >
-                        <div
-                          className="w-full h-full"
-                          style={{
-                            backgroundImage: `url(${selectedImageUrl})`,
-                            backgroundSize: `${imageRef.current.naturalWidth * ZOOM_LEVEL}px ${imageRef.current.naturalHeight * ZOOM_LEVEL}px`,
-                            backgroundPosition: `calc(50% - ${backgroundPosition.x * ZOOM_LEVEL}px) calc(50% - ${backgroundPosition.y * ZOOM_LEVEL}px)`,
-                            backgroundRepeat: 'no-repeat',
-                          }}
-                        />
-                        {/* Crosshair in center */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-0.5 h-10 bg-red-500/80"></div>
-                        </div>
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-10 h-0.5 bg-red-500/80"></div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Hover hint - show when not actively hovering the image */}
-                    {!isHovering && selectedImageUrl && (
-                      <div className="absolute top-3 left-1/2 transform -translate-x-1/2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-white text-xs flex items-center gap-2 opacity-70 z-20">
-                        <ZoomIn className="w-3 h-3" />
-                        <span>
-                          {canUseMagnifier
-                            ? t('image_hover_to_zoom')
-                            : t('image_reset_to_zoom')
-                          }
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Image manipulation toolbar - outside image container */}
-                  <div className="flex items-center justify-center gap-2 bg-gray-200 rounded-lg px-4 py-2">
                     <button
                       onClick={() => setImageRotation(r => r - 90)}
-                      className="p-2 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+                      className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
                       title={t('image_rotate_left')}
                     >
-                      <RotateCcw className="w-5 h-5" />
+                      <RotateCcw className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setImageRotation(r => r + 90)}
-                      className="p-2 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+                      className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
                       title={t('image_rotate_right')}
                     >
-                      <RotateCw className="w-5 h-5" />
+                      <RotateCw className="w-4 h-4" />
                     </button>
-                    <div className="w-px h-6 bg-gray-400" />
+                    <div className="w-px h-4 bg-white/30" />
                     <button
                       onClick={() => setImageZoom(z => Math.max(0.5, z - 0.25))}
-                      className="p-2 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+                      className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
                       title={t('image_zoom_out')}
                     >
-                      <ZoomOut className="w-5 h-5" />
+                      <ZoomOut className="w-4 h-4" />
                     </button>
-                    <span className="text-gray-700 text-sm font-medium min-w-[3.5rem] text-center">
+                    <span className="text-white text-xs min-w-[3rem] text-center">
                       {Math.round(imageZoom * 100)}%
                     </span>
                     <button
                       onClick={() => setImageZoom(z => Math.min(3, z + 0.25))}
-                      className="p-2 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+                      className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
                       title={t('image_zoom_in')}
                     >
-                      <ZoomIn className="w-5 h-5" />
+                      <ZoomIn className="w-4 h-4" />
                     </button>
                     {/* Reset rotation button */}
                     {imageRotation !== 0 && (
                       <>
-                        <div className="w-px h-6 bg-gray-400" />
+                        <div className="w-px h-4 bg-white/30" />
                         <button
                           onClick={() => setImageRotation(0)}
-                          className="p-2 hover:bg-gray-300 rounded-lg text-gray-700 transition-colors"
+                          className="p-1.5 hover:bg-white/20 rounded-full text-white transition-colors"
                           title={t('image_reset')}
                         >
-                          <X className="w-5 h-5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </>
                     )}

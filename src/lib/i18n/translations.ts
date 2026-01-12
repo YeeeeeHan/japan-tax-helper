@@ -131,9 +131,12 @@ export const translations = {
     image_rotate_right: '右に回転',
     image_zoom_in: '拡大',
     image_zoom_out: '縮小',
+    image_pan_up: '上へ移動',
+    image_pan_down: '下へ移動',
+    image_pan_left: '左へ移動',
+    image_pan_right: '右へ移動',
     image_reset: 'リセット',
     image_hover_to_zoom: 'ホバーで拡大',
-    image_reset_to_zoom: '回転をリセットして拡大表示',
 
     // AI Analysis
     ai_complete: 'AI解析完了',
@@ -277,9 +280,12 @@ export const translations = {
     image_rotate_right: 'Rotate right',
     image_zoom_in: 'Zoom in',
     image_zoom_out: 'Zoom out',
+    image_pan_up: 'Pan up',
+    image_pan_down: 'Pan down',
+    image_pan_left: 'Pan left',
+    image_pan_right: 'Pan right',
     image_reset: 'Reset',
     image_hover_to_zoom: 'Hover to zoom',
-    image_reset_to_zoom: 'Reset rotation to use magnifier',
 
     // AI Analysis
     ai_complete: 'AI Analysis Complete',
