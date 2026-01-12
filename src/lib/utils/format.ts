@@ -3,8 +3,13 @@
 /**
  * Format date for Japanese display (yyyy/mm/dd)
  */
-export function formatDate(date: Date | string, locale: 'ja' | 'en' = 'ja'): string {
+export function formatDate(date: Date | string | null | undefined, locale: 'ja' | 'en' = 'ja'): string {
+  if (!date) return '';
+
   const d = typeof date === 'string' ? new Date(date) : date;
+
+  // Check if date is invalid
+  if (isNaN(d.getTime())) return '';
 
   return new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'en-US', {
     year: 'numeric',
@@ -17,8 +22,14 @@ export function formatDate(date: Date | string, locale: 'ja' | 'en' = 'ja'): str
 /**
  * Format date for input field (yyyy-mm-dd)
  */
-export function formatDateForInput(date: Date | string): string {
+export function formatDateForInput(date: Date | string | null | undefined): string {
+  if (!date) return '';
+
   const d = typeof date === 'string' ? new Date(date) : date;
+
+  // Check if date is invalid
+  if (isNaN(d.getTime())) return '';
+
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');

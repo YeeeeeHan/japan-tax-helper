@@ -42,39 +42,87 @@ export default function DashboardPage() {
   // Pan step size (in pixels)
   const panStep = 50;
 
-  // Helper to get review reasons for a receipt
-  const getReviewReasons = (receipt: Receipt) => {
-    const reasons: { key: string; label: string; type: 'error' | 'warning' }[] = [];
-    const confidence = receipt.confidence;
+  // Helper to get field confidence status for styling - simplified to two states
+  const getFieldConfidenceStatus = (receipt: Receipt, fieldName: string): 'ok' | 'attention' => {
+    const confidence = receipt.confidence?.fields?.[fieldName as keyof typeof receipt.confidence.fields];
 
-    // Overall confidence low
-    if (!confidence || confidence.overall < 0.75) {
-      reasons.push({ key: 'overall', label: t('review_reason_overall'), type: 'error' });
+    // Special case for T-Number - if missing, it needs attention
+    if (fieldName === 'tNumber' && !receipt.extractedData.tNumber) {
+      return 'attention';
     }
 
-    // Field-specific checks
-    if (confidence?.fields) {
-      if (confidence.fields.tNumber < 0.8 || !receipt.extractedData.tNumber) {
-        reasons.push({ key: 'tNumber', label: t('review_reason_tnumber'), type: 'warning' });
-      }
-      if (confidence.fields.totalAmount < 0.8) {
-        reasons.push({ key: 'totalAmount', label: t('review_reason_amount'), type: 'warning' });
-      }
-      if (confidence.fields.category < 0.75) {
-        reasons.push({ key: 'category', label: t('review_reason_category'), type: 'warning' });
-      }
-      if (confidence.fields.issuerName < 0.8) {
-        reasons.push({ key: 'issuerName', label: t('review_reason_issuer'), type: 'warning' });
-      }
-      if (confidence.fields.transactionDate < 0.8) {
-        reasons.push({ key: 'transactionDate', label: t('review_reason_date'), type: 'warning' });
-      }
-    } else if (!receipt.extractedData.tNumber) {
-      // If no confidence.fields but T-Number is missing
-      reasons.push({ key: 'tNumber', label: t('review_reason_tnumber'), type: 'warning' });
-    }
+    if (confidence === undefined) return 'attention';
+    if (confidence >= 0.9) return 'ok';
+    return 'attention';
+  };
 
-    return reasons;
+  // Get input field styling based on confidence - standardized to amber for attention
+  const getFieldInputClassName = (receipt: Receipt, fieldName: string, baseClass: string = '') => {
+    const status = getFieldConfidenceStatus(receipt, fieldName);
+    const statusStyles = {
+      ok: 'border-gray-300 focus:ring-primary-500',
+      attention: 'border-amber-400 bg-amber-50 focus:ring-amber-500',
+    };
+    return `${baseClass} ${statusStyles[status]}`;
+  };
+
+  // Get confidence indicator icon for a field - simplified to two states
+  const FieldConfidenceIndicator = ({ receipt, fieldName }: { receipt: Receipt; fieldName: string }) => {
+    const status = getFieldConfidenceStatus(receipt, fieldName);
+    const confidence = receipt.confidence?.fields?.[fieldName as keyof typeof receipt.confidence.fields];
+    const confidencePercent = confidence !== undefined ? Math.round(confidence * 100) : null;
+
+    if (status === 'ok') {
+      return (
+        <span title={`${confidencePercent}% confidence`}>
+          <CheckCircle2 className="w-4 h-4 text-green-600" />
+        </span>
+      );
+    }
+    return (
+      <span title={confidencePercent !== null ? `${confidencePercent}% confidence - needs review` : 'Missing value'}>
+        <AlertCircle className="w-4 h-4 text-amber-600" />
+      </span>
+    );
+  };
+
+  // Helper to get review reason for a specific field
+  // Returns the reason string if the field needs attention, null otherwise
+  const getFieldReviewReason = (receipt: Receipt, fieldName: string): string | null => {
+    const confidence = receipt.confidence?.fields?.[fieldName as keyof typeof receipt.confidence.fields];
+
+    // Check if field needs attention (same logic as getFieldConfidenceStatus)
+    const needsAttention = (() => {
+      if (fieldName === 'tNumber' && !receipt.extractedData.tNumber) return true;
+      if (confidence === undefined) return true;
+      return confidence < 0.9;
+    })();
+
+    if (!needsAttention) return null;
+
+    // Return appropriate reason based on field
+    const isMissing = fieldName === 'tNumber' && !receipt.extractedData.tNumber;
+
+    switch (fieldName) {
+      case 'tNumber':
+        return isMissing ? t('warning_tnumber_not_found') : t('review_reason_tnumber');
+      case 'totalAmount':
+        return t('review_reason_amount');
+      case 'category':
+        return t('review_reason_category');
+      case 'issuerName':
+        return t('review_reason_issuer');
+      case 'transactionDate':
+        return t('review_reason_date');
+      default:
+        return null;
+    }
+  };
+
+  // Check if any field needs review
+  const hasFieldsNeedingReview = (receipt: Receipt): boolean => {
+    const fields = ['tNumber', 'totalAmount', 'category', 'issuerName', 'transactionDate'];
+    return fields.some(field => getFieldReviewReason(receipt, field) !== null);
   };
 
   // Workflow step calculation
@@ -660,9 +708,7 @@ export default function DashboardPage() {
                     <ChevronDown className="w-5 h-5" />
                   </button>
                 </div>
-                {selectedReceipt.needsReview && (
-                  <span className="text-sm text-gray-500">{t('status_needs_review')}</span>
-                )}
+{/* Removed subtle text - now using prominent banner below */}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -774,95 +820,121 @@ export default function DashboardPage() {
 
                 {/* Right: Editable form */}
                 <div className="space-y-4">
-                  {/* Review Reasons Indicators */}
-                  {selectedReceipt.needsReview && (() => {
-                    const reasons = getReviewReasons(selectedReceipt);
-                    return reasons.length > 0 ? (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <AlertTriangle className="w-4 h-4 text-amber-600" />
-                          <span className="text-sm font-medium text-amber-900">{t('review_reasons_title')}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {reasons.map((reason) => (
-                            <span
-                              key={reason.key}
-                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                reason.type === 'error'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-amber-100 text-amber-700'
-                              }`}
-                            >
-                              {reason.label}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null;
-                  })()}
+                  {/* Prominent "Needs Review" Banner */}
+                  {selectedReceipt.needsReview && (
+                    <div className="bg-amber-500 text-white px-4 py-3 rounded-lg flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                      <span className="font-medium">{t('status_needs_review')}</span>
+                    </div>
+                  )}
 
                   {/* AI Analysis badge */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="flex items-center space-x-2">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-900">
-                        {t('ai_complete')} - {t('ai_confidence', { confidence: ((selectedReceipt.confidence?.overall ?? 0) * 100).toFixed(0) })}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Sparkles className="w-4 h-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-900">
+                          {t('ai_complete')} - {t('ai_confidence', { confidence: ((selectedReceipt.confidence?.overall ?? 0) * 100).toFixed(0) })}
+                        </span>
+                      </div>
+                      {/* Dev-only: Show model/strategy used */}
+                      {process.env.NODE_ENV === 'development' && selectedReceipt._dev?.strategy && (
+                        <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full font-mono">
+                          {selectedReceipt._dev.strategy}
+                        </span>
+                      )}
                     </div>
+                    {/* Dev-only: Show processing details */}
+                    {process.env.NODE_ENV === 'development' && selectedReceipt._dev && (
+                      <div className="mt-2 pt-2 border-t border-blue-200 flex items-center gap-4 text-xs text-blue-700">
+                        {selectedReceipt._dev.processingTimeMs && (
+                          <span>Time: {selectedReceipt._dev.processingTimeMs}ms</span>
+                        )}
+                        {selectedReceipt._dev.estimatedCost !== undefined && (
+                          <span>Cost: ${selectedReceipt._dev.estimatedCost.toFixed(4)}</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Issuer Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('field_issuer_name')}
+                      <div className="flex items-center gap-2">
+                        <FieldConfidenceIndicator receipt={selectedReceipt} fieldName="issuerName" />
+                        <span>{t('field_issuer_name')}</span>
+                        {getFieldReviewReason(selectedReceipt, 'issuerName') && (
+                          <span className="text-xs text-amber-600 font-normal">
+                            {getFieldReviewReason(selectedReceipt, 'issuerName')}
+                          </span>
+                        )}
+                      </div>
                     </label>
                     <div className="relative">
                       <input
                         type="text"
                         value={editedData.issuerName}
                         onChange={(e) => setEditedData({ ...editedData, issuerName: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className={`w-full px-3 py-2 pr-10 border rounded-lg focus:outline-none focus:ring-2 ${getFieldInputClassName(selectedReceipt, 'issuerName')}`}
                       />
-                      {(selectedReceipt.confidence?.fields?.issuerName ?? 0) >= 0.9 && (
-                        <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-600" />
-                      )}
                     </div>
                   </div>
 
                   {/* Transaction Date */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('field_date')}
+                      <div className="flex items-center gap-2">
+                        <FieldConfidenceIndicator receipt={selectedReceipt} fieldName="transactionDate" />
+                        <span>{t('field_date')}</span>
+                        {getFieldReviewReason(selectedReceipt, 'transactionDate') && (
+                          <span className="text-xs text-amber-600 font-normal">
+                            {getFieldReviewReason(selectedReceipt, 'transactionDate')}
+                          </span>
+                        )}
+                      </div>
                     </label>
                     <input
                       type="date"
                       value={formatDateForInput(editedData.transactionDate)}
                       onChange={(e) => setEditedData({ ...editedData, transactionDate: new Date(e.target.value) })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${getFieldInputClassName(selectedReceipt, 'transactionDate')}`}
                     />
                   </div>
 
                   {/* T-Number */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
-                      <span>{t('field_tnumber')}</span>
-                      {!editedData.tNumber && (
-                        <span className="text-xs text-red-600">{t('field_check_required')}</span>
-                      )}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <div className="flex items-center gap-2">
+                        <FieldConfidenceIndicator receipt={selectedReceipt} fieldName="tNumber" />
+                        <span>{t('field_tnumber')}</span>
+                        {getFieldReviewReason(selectedReceipt, 'tNumber') && (
+                          <span className="text-xs text-amber-600 font-normal">
+                            {getFieldReviewReason(selectedReceipt, 'tNumber')}
+                          </span>
+                        )}
+                      </div>
                     </label>
                     <input
                       type="text"
                       value={editedData.tNumber ? formatTNumber(editedData.tNumber) : ''}
                       onChange={(e) => setEditedData({ ...editedData, tNumber: parseTNumber(e.target.value) })}
                       placeholder="T 1234567890123"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${getFieldInputClassName(selectedReceipt, 'tNumber')}`}
                     />
                   </div>
 
                   {/* Total Amount */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('field_total_amount')}
+                      <div className="flex items-center gap-2">
+                        <FieldConfidenceIndicator receipt={selectedReceipt} fieldName="totalAmount" />
+                        <span>{t('field_total_amount')}</span>
+                        {getFieldReviewReason(selectedReceipt, 'totalAmount') && (
+                          <span className="text-xs text-amber-600 font-normal">
+                            {getFieldReviewReason(selectedReceipt, 'totalAmount')}
+                          </span>
+                        )}
+                      </div>
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">¥</span>
@@ -870,7 +942,7 @@ export default function DashboardPage() {
                         type="number"
                         value={editedData.totalAmount}
                         onChange={(e) => setEditedData({ ...editedData, totalAmount: parseInt(e.target.value) || 0 })}
-                        className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-right text-lg font-medium"
+                        className={`w-full pl-8 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 text-right text-lg font-medium ${getFieldInputClassName(selectedReceipt, 'totalAmount')}`}
                       />
                     </div>
                   </div>
@@ -878,12 +950,20 @@ export default function DashboardPage() {
                   {/* Category */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {t('field_category')}
+                      <div className="flex items-center gap-2">
+                        <FieldConfidenceIndicator receipt={selectedReceipt} fieldName="category" />
+                        <span>{t('field_category')}</span>
+                        {getFieldReviewReason(selectedReceipt, 'category') && (
+                          <span className="text-xs text-amber-600 font-normal">
+                            {getFieldReviewReason(selectedReceipt, 'category')}
+                          </span>
+                        )}
+                      </div>
                     </label>
                     <select
                       value={editedData.suggestedCategory}
                       onChange={(e) => setEditedData({ ...editedData, suggestedCategory: e.target.value as ExpenseCategory })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${getFieldInputClassName(selectedReceipt, 'category')}`}
                     >
                       {EXPENSE_CATEGORIES.map(cat => (
                         <option key={cat.value} value={cat.value}>

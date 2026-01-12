@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug OCR Strategy</title>
+</head>
+<body>
+  <h1>OCR Strategy Debugger</h1>
+  <div id="output"></div>
+  <script>
+    const DEV_STRATEGY_STORAGE_KEY = 'dev_ocr_strategy';
+    const savedStrategy = localStorage.getItem(DEV_STRATEGY_STORAGE_KEY);
+    const nodeEnv = process.env.NODE_ENV;
+
+    document.getElementById('output').innerHTML = `
+      <p><strong>Saved Strategy in localStorage:</strong> ${savedStrategy || 'Not set'}</p>
+      <p><strong>NODE_ENV:</strong> ${nodeEnv || 'Not available'}</p>
+      <br>
+      <button onclick="localStorage.setItem('${DEV_STRATEGY_STORAGE_KEY}', 'gemini-2.0-flash'); location.reload();">
+        Set to Gemini 2.0 Flash
+      </button>
+      <button onclick="localStorage.setItem('${DEV_STRATEGY_STORAGE_KEY}', 'gemini-1.5-flash'); location.reload();">
+        Set to Gemini 1.5 Flash
+      </button>
+      <button onclick="localStorage.setItem('${DEV_STRATEGY_STORAGE_KEY}', 'claude-sonnet'); location.reload();">
+        Set to Claude Sonnet
+      </button>
+      <button onclick="localStorage.removeItem('${DEV_STRATEGY_STORAGE_KEY}'); location.reload();">
+        Clear Strategy
+      </button>
+    `;
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { db } from './schema';
-import type { Receipt, UploadBatch, ReceiptFilters } from '@/types/receipt';
+import type { Receipt, UploadBatch, ReceiptFilters, UploadQueueItem } from '@/types/receipt';
 
 /**
  * Add a new receipt to the database
@@ -100,13 +100,26 @@ export async function getReceipts(filters?: ReceiptFilters): Promise<Receipt[]> 
 }
 
 /**
- * Delete a receipt and its associated image
+ * Delete a receipt and its associated image and upload queue item
  */
 export async function deleteReceipt(id: string): Promise<void> {
   const receipt = await db.receipts.get(id);
   if (receipt) {
+    // Delete the image
     await db.images.delete(receipt.imageId);
+
+    // Delete the receipt
     await db.receipts.delete(id);
+
+    // Delete the associated upload queue item if it exists
+    const queueItems = await db.uploadQueue
+      .where('receiptId')
+      .equals(id)
+      .toArray();
+
+    for (const item of queueItems) {
+      await db.uploadQueue.delete(item.id);
+    }
   }
 }
 
@@ -171,4 +184,72 @@ export async function clearAllData(): Promise<void> {
   await db.receipts.clear();
   await db.images.clear();
   await db.batches.clear();
+  await db.uploadQueue.clear();
+}
+
+/**
+ * Upload Queue Operations
+ */
+
+/**
+ * Add an item to the upload queue
+ */
+export async function addToUploadQueue(item: UploadQueueItem): Promise<string> {
+  return await db.uploadQueue.add(item);
+}
+
+/**
+ * Update an upload queue item
+ */
+export async function updateUploadQueueItem(
+  id: string,
+  updates: Partial<UploadQueueItem>
+): Promise<void> {
+  await db.uploadQueue.update(id, {
+    ...updates,
+    updatedAt: new Date(),
+  });
+}
+
+/**
+ * Get all upload queue items
+ */
+export async function getUploadQueue(): Promise<UploadQueueItem[]> {
+  return await db.uploadQueue.toArray();
+}
+
+/**
+ * Get pending upload queue items (not completed or failed)
+ */
+export async function getPendingUploadQueueItems(): Promise<UploadQueueItem[]> {
+  return await db.uploadQueue
+    .where('status')
+    .anyOf(['pending', 'uploading', 'processing'])
+    .toArray();
+}
+
+/**
+ * Get a single upload queue item by ID
+ */
+export async function getUploadQueueItem(id: string): Promise<UploadQueueItem | undefined> {
+  return await db.uploadQueue.get(id);
+}
+
+/**
+ * Delete an upload queue item
+ */
+export async function deleteUploadQueueItem(id: string): Promise<void> {
+  await db.uploadQueue.delete(id);
+}
+
+/**
+ * Clear completed and failed items from upload queue
+ */
+export async function clearCompletedUploadQueueItems(): Promise<void> {
+  const items = await db.uploadQueue
+    .where('status')
+    .anyOf(['completed', 'failed'])
+    .toArray();
+
+  await db.uploadQueue.bulkDelete(items.map(item => item.id));
 }

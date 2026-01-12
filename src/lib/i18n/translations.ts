@@ -108,6 +108,13 @@ export const translations = {
     review_reason_issuer: '発行者名の確認',
     review_reason_date: '取引日の確認',
 
+    // Validation warnings (from API)
+    warning_tnumber_not_found: 'T番号が見つかりません',
+    warning_tnumber_low_confidence: 'T番号の信頼度が低い',
+    warning_tnumber_missing_compliance: 'T番号がありません。適格請求書の要件を満たさない可能性があります',
+    warning_amount_low_confidence: '金額の信頼度が低い',
+    warning_total_low_confidence: '合計金額の信頼度が低い',
+
     // Actions
     action_save_next: '保存して次へ',
     action_save_approve: '保存して完了',
@@ -248,6 +255,13 @@ export const translations = {
     review_reason_category: 'Category needs review',
     review_reason_issuer: 'Issuer name needs review',
     review_reason_date: 'Date needs review',
+
+    // Validation warnings (from API)
+    warning_tnumber_not_found: 'T-Number not found on receipt',
+    warning_tnumber_low_confidence: 'T-Number has low confidence',
+    warning_tnumber_missing_compliance: 'T-Number is missing. May not comply with 適格請求書 requirements',
+    warning_amount_low_confidence: 'Amount has low confidence',
+    warning_total_low_confidence: 'Total amount has low confidence',
 
     // Actions
     action_save_next: 'Save & Next',

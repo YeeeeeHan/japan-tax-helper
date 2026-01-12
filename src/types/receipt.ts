@@ -23,6 +23,13 @@ export interface Receipt {
   isManuallyReviewed: boolean;
   needsReview: boolean;
   notes?: string;
+
+  // Dev metadata (only populated in development)
+  _dev?: {
+    strategy?: string;       // OCR strategy used (e.g., 'claude-sonnet', 'gemini-2.0-flash')
+    processingTimeMs?: number;
+    estimatedCost?: number;
+  };
 }
 
 export interface ExtractedData {
@@ -143,4 +150,25 @@ export interface ReceiptFilters {
     to: Date;
   };
   searchQuery?: string;
+}
+
+// Upload queue tracking
+export interface UploadQueueItem {
+  id: string; // UUID for the queue item
+  createdAt: Date;
+  updatedAt: Date;
+
+  // File metadata
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  imageId: string; // Reference to stored image blob
+
+  // Processing state
+  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  error?: string;
+
+  // Link to receipt once created
+  receiptId?: string;
 }

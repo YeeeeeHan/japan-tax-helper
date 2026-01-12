@@ -5,23 +5,38 @@ import { useRouter } from 'next/navigation';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import { CloudUpload, FileImage, CheckCircle2, AlertCircle, Loader2, X, ArrowRight, RefreshCcw, ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from 'lucide-react';
-import { storeImage } from '@/lib/storage/images';
-import { addReceipt } from '@/lib/db/operations';
-import type { Receipt } from '@/types/receipt';
+import { storeImage, getImageBlob } from '@/lib/storage/images';
+import {
+  addReceipt,
+  addToUploadQueue,
+  updateUploadQueueItem,
+  getUploadQueue,
+  deleteUploadQueueItem,
+} from '@/lib/db/operations';
+import type { Receipt, UploadQueueItem } from '@/types/receipt';
 import { formatFileSize } from '@/lib/utils/format';
 import { UPLOAD_CONSTRAINTS } from '@/lib/utils/constants';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import { useI18n } from '@/lib/i18n/context';
+import { DevStrategySwitcher, useOCRStrategy } from '@/components/dev/DevStrategySwitcher';
 
 interface FileWithStatus {
   id: string;
-  file: File;
+  file: File | null; // null when restored from IndexedDB (file is already stored as blob)
   status: 'pending' | 'uploading' | 'processing' | 'completed' | 'failed';
   progress: number;
   error?: string;
   receiptId?: string;
   thumbnailUrl?: string;
+  queueId: string; // Reference to UploadQueueItem in IndexedDB
+  imageId: string; // Reference to stored image blob
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
 }
+
+// Check if we're in development mode (client-side check)
+const isDevelopment = process.env.NODE_ENV === 'development';
 
 export default function UploadPage() {
   const router = useRouter();
@@ -32,10 +47,61 @@ export default function UploadPage() {
   const [previewFile, setPreviewFile] = useState<FileWithStatus | null>(null);
   const [previewZoom, setPreviewZoom] = useState(1);
 
+  // Get current OCR strategy from dev switcher
+  const currentStrategy = useOCRStrategy();
+
+  // Restore upload queue from IndexedDB on mount
+  useEffect(() => {
+    const restoreQueue = async () => {
+      try {
+        const queueItems = await getUploadQueue();
+
+        if (queueItems.length === 0) return;
+
+        // Convert queue items back to FileWithStatus
+        const restoredFiles: FileWithStatus[] = await Promise.all(
+          queueItems.map(async (item) => {
+            // Generate thumbnail URL from stored blob
+            let thumbnailUrl: string | undefined;
+            try {
+              const blob = await getImageBlob(item.imageId);
+              if (blob) {
+                thumbnailUrl = URL.createObjectURL(blob);
+              }
+            } catch (e) {
+              console.error('Error loading thumbnail for', item.imageId, e);
+            }
+
+            return {
+              id: item.id,
+              file: null, // File object not available after restore
+              status: item.status,
+              progress: item.progress,
+              error: item.error,
+              receiptId: item.receiptId,
+              thumbnailUrl,
+              queueId: item.id,
+              imageId: item.imageId,
+              fileName: item.fileName,
+              fileSize: item.fileSize,
+              mimeType: item.mimeType,
+            };
+          })
+        );
+
+        setFiles(restoredFiles);
+      } catch (error) {
+        console.error('Error restoring upload queue:', error);
+      }
+    };
+
+    restoreQueue();
+  }, []); // Run once on mount
+
   // Generate thumbnails for uploaded files
   useEffect(() => {
     files.forEach(f => {
-      if (!f.thumbnailUrl && f.file.type.startsWith('image/')) {
+      if (!f.thumbnailUrl && f.file && f.file.type.startsWith('image/')) {
         const url = URL.createObjectURL(f.file);
         setFiles(prev => prev.map(file =>
           file.id === f.id ? { ...file, thumbnailUrl: url } : file
@@ -50,13 +116,53 @@ export default function UploadPage() {
     };
   }, [files.length]);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles: FileWithStatus[] = acceptedFiles.map(file => ({
-      id: uuidv4(),
-      file,
-      status: 'pending',
-      progress: 0,
-    }));
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    // Process files and store them in IndexedDB
+    const newFiles: FileWithStatus[] = await Promise.all(
+      acceptedFiles.map(async (file) => {
+        const queueId = uuidv4();
+        const imageId = uuidv4();
+
+        // Store image immediately
+        try {
+          await storeImage(file, imageId);
+        } catch (error) {
+          console.error('Error storing image:', error);
+        }
+
+        // Create upload queue item
+        const queueItem: UploadQueueItem = {
+          id: queueId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+          imageId,
+          status: 'pending',
+          progress: 0,
+        };
+
+        // Add to upload queue
+        try {
+          await addToUploadQueue(queueItem);
+        } catch (error) {
+          console.error('Error adding to upload queue:', error);
+        }
+
+        return {
+          id: queueId,
+          file,
+          status: 'pending' as const,
+          progress: 0,
+          queueId,
+          imageId,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        };
+      })
+    );
 
     setFiles(prev => [...prev, ...newFiles]);
   }, []);
@@ -73,31 +179,60 @@ export default function UploadPage() {
     multiple: true,
   });
 
-  const removeFile = (id: string) => {
-    setFiles(prev => {
-      const file = prev.find(f => f.id === id);
-      if (file?.thumbnailUrl) URL.revokeObjectURL(file.thumbnailUrl);
-      return prev.filter(f => f.id !== id);
-    });
+  const removeFile = async (id: string) => {
+    const file = files.find(f => f.id === id);
+    if (!file) return;
+
+    // Clean up thumbnail URL
+    if (file.thumbnailUrl) URL.revokeObjectURL(file.thumbnailUrl);
+
+    // Delete from upload queue
+    try {
+      await deleteUploadQueueItem(file.queueId);
+    } catch (error) {
+      console.error('Error deleting from upload queue:', error);
+    }
+
+    setFiles(prev => prev.filter(f => f.id !== id));
   };
 
   const processFile = async (fileWithStatus: FileWithStatus) => {
-    const { id, file } = fileWithStatus;
+    const { id, file, imageId, queueId } = fileWithStatus;
 
     try {
+      // Update status to uploading
       setFiles(prev =>
         prev.map(f => (f.id === id ? { ...f, status: 'uploading' as const, progress: 10 } : f))
       );
+      await updateUploadQueueItem(queueId, { status: 'uploading', progress: 10 });
 
-      const imageId = uuidv4();
-      await storeImage(file, imageId);
+      // Get the blob from IndexedDB (file might be null if restored)
+      let blob: Blob;
+      if (file) {
+        blob = file;
+      } else {
+        const storedBlob = await getImageBlob(imageId);
+        if (!storedBlob) {
+          throw new Error('Image not found in storage');
+        }
+        blob = storedBlob;
+      }
 
+      // Update status to processing
       setFiles(prev =>
         prev.map(f => (f.id === id ? { ...f, status: 'processing' as const, progress: 30 } : f))
       );
+      await updateUploadQueueItem(queueId, { status: 'processing', progress: 30 });
 
+      // Send to API for extraction
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', blob, fileWithStatus.fileName);
+      // Include strategy parameter (only used in development)
+      formData.append('strategy', currentStrategy);
+
+      console.log('[Upload] Sending to API with strategy:', currentStrategy);
+      console.log('[Upload] NODE_ENV:', process.env.NODE_ENV);
+      console.log('[Upload] isDevelopment:', isDevelopment);
 
       const response = await fetch('/api/extract', {
         method: 'POST',
@@ -113,26 +248,31 @@ export default function UploadPage() {
       setFiles(prev =>
         prev.map(f => (f.id === id ? { ...f, progress: 80 } : f))
       );
+      await updateUploadQueueItem(queueId, { progress: 80 });
 
+      // Create receipt
       const receipt: Receipt = {
         id: uuidv4(),
         createdAt: new Date(),
         updatedAt: new Date(),
         imageId,
-        imageUrl: URL.createObjectURL(file),
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
+        imageUrl: URL.createObjectURL(blob),
+        fileName: fileWithStatus.fileName,
+        fileSize: fileWithStatus.fileSize,
+        mimeType: fileWithStatus.mimeType,
         extractedData: result.data.extractedData,
         processingStatus: 'completed',
         confidence: result.data.confidence,
         isManuallyReviewed: false,
         needsReview: result.data.needsReview,
         notes: result.data.validation.warnings?.join(', '),
+        // Save dev metadata (only in development)
+        ...(result.data._dev && { _dev: result.data._dev }),
       };
 
       await addReceipt(receipt);
 
+      // Update to completed
       setFiles(prev =>
         prev.map(f =>
           f.id === id
@@ -140,6 +280,11 @@ export default function UploadPage() {
             : f
         )
       );
+      await updateUploadQueueItem(queueId, {
+        status: 'completed',
+        progress: 100,
+        receiptId: receipt.id,
+      });
     } catch (error: any) {
       console.error('Error processing file:', error);
       setFiles(prev =>
@@ -149,6 +294,10 @@ export default function UploadPage() {
             : f
         )
       );
+      await updateUploadQueueItem(queueId, {
+        status: 'failed',
+        error: error.message,
+      });
     }
   };
 
@@ -176,15 +325,68 @@ export default function UploadPage() {
       )
     );
 
+    // Update upload queue
+    await updateUploadQueueItem(fileToRetry.queueId, {
+      status: 'pending',
+      progress: 0,
+      error: undefined,
+    });
+
     // Process the file
     await processFile({ ...fileToRetry, status: 'pending', progress: 0, error: undefined });
+  };
+
+  const clearCompleted = async () => {
+    const completedFiles = files.filter(f => f.status === 'completed');
+
+    // Delete completed files from upload queue
+    for (const file of completedFiles) {
+      try {
+        await deleteUploadQueueItem(file.queueId);
+      } catch (error) {
+        console.error('Error deleting upload queue item:', error);
+      }
+
+      // Revoke thumbnail URL
+      if (file.thumbnailUrl) {
+        URL.revokeObjectURL(file.thumbnailUrl);
+      }
+    }
+
+    // Remove from state
+    setFiles(prev => prev.filter(f => f.status !== 'completed'));
+  };
+
+  const clearAll = async () => {
+    // Delete all files from upload queue
+    for (const file of files) {
+      try {
+        await deleteUploadQueueItem(file.queueId);
+      } catch (error) {
+        console.error('Error deleting upload queue item:', error);
+      }
+
+      // Revoke thumbnail URL
+      if (file.thumbnailUrl) {
+        URL.revokeObjectURL(file.thumbnailUrl);
+      }
+    }
+
+    // Clear state
+    setFiles([]);
+  };
+
+  const goToDashboard = async () => {
+    // Clear completed uploads before navigating
+    await clearCompleted();
+    router.push('/dashboard');
   };
 
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const processingCount = files.filter(f => f.status === 'processing' || f.status === 'uploading').length;
   const completedCount = files.filter(f => f.status === 'completed').length;
   const failedCount = files.filter(f => f.status === 'failed').length;
-  const totalSize = files.reduce((acc, f) => acc + f.file.size, 0);
+  const totalSize = files.reduce((acc, f) => acc + f.fileSize, 0);
   const progressPercent = files.length > 0 ? Math.round((completedCount / files.length) * 100) : 0;
 
   // Preview navigation
@@ -312,14 +514,24 @@ export default function UploadPage() {
               <h3 className="font-medium text-gray-900">
                 {t('upload_files')} ({files.length})
               </h3>
-              {pendingCount > 0 && !isProcessing && (
-                <button
-                  onClick={() => setFiles([])}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  {t('upload_clear_all')}
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {completedCount > 0 && (
+                  <button
+                    onClick={clearCompleted}
+                    className="text-sm text-green-600 hover:text-green-700 font-medium"
+                  >
+                    Clear Completed ({completedCount})
+                  </button>
+                )}
+                {pendingCount > 0 && !isProcessing && (
+                  <button
+                    onClick={clearAll}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    {t('upload_clear_all')}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Grid of thumbnails */}
@@ -334,7 +546,7 @@ export default function UploadPage() {
                   {fileWithStatus.thumbnailUrl ? (
                     <img
                       src={fileWithStatus.thumbnailUrl}
-                      alt={fileWithStatus.file.name}
+                      alt={fileWithStatus.fileName}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -383,7 +595,7 @@ export default function UploadPage() {
 
                   {/* File name tooltip on hover */}
                   <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-xs text-white truncate">{fileWithStatus.file.name}</p>
+                    <p className="text-xs text-white truncate">{fileWithStatus.fileName}</p>
                   </div>
                 </div>
               ))}
@@ -444,7 +656,7 @@ export default function UploadPage() {
               <div className="flex items-center gap-3">
                 {completedCount === files.length && files.length > 0 ? (
                   <button
-                    onClick={() => router.push('/dashboard')}
+                    onClick={goToDashboard}
                     className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
                   >
                     <span>{t('upload_go_to_dashboard')}</span>
@@ -547,7 +759,7 @@ export default function UploadPage() {
             {previewFile.thumbnailUrl ? (
               <img
                 src={previewFile.thumbnailUrl}
-                alt={previewFile.file.name}
+                alt={previewFile.fileName}
                 className="max-w-full max-h-[80vh] object-contain transition-transform duration-200"
                 style={{ transform: `scale(${previewZoom})` }}
               />
@@ -609,10 +821,13 @@ export default function UploadPage() {
 
           {/* File name */}
           <div className="absolute top-4 left-4 text-white text-sm bg-black/50 px-3 py-1 rounded-lg">
-            {previewFile.file.name}
+            {previewFile.fileName}
           </div>
         </div>
       )}
+
+      {/* Dev Strategy Switcher - Only shown in development mode */}
+      {isDevelopment && <DevStrategySwitcher />}
     </div>
   );
 }
