@@ -494,7 +494,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden overflow-x-hidden bg-gray-50">
+    <div
+      className="h-screen flex flex-col overflow-hidden overflow-x-hidden bg-gray-50"
+      style={{ touchAction: 'pan-y' }}
+    >
       {/* Header */}
       <header className="flex-shrink-0 bg-white border-b border-gray-200">
         <div className="px-3 sm:px-6 py-3 sm:py-4">
