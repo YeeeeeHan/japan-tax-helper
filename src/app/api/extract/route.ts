@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { extractWithStrategy } from '@/lib/ai/strategies';
 import { validateReceiptData, needsReview } from '@/lib/validation/receipt';
 import { extractLimiter } from '@/lib/utils/rate-limit';
+import { withRetry } from '@/lib/utils/retry';
 import type { OCRStrategy } from '@/types/ocr-strategy';
 import { OCR_STRATEGIES, DEFAULT_OCR_STRATEGY } from '@/types/ocr-strategy';
 
@@ -100,8 +101,21 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     const base64 = buffer.toString('base64');
 
-    // Extract data using selected strategy
-    const extractionResult = await extractWithStrategy(base64, file.type, apiKey, strategy);
+    // Extract data using selected strategy with automatic retry on transient failures
+    const extractionResult = await withRetry(
+      () => extractWithStrategy(base64, file.type, apiKey, strategy),
+      {
+        maxRetries: 3,
+        initialDelayMs: 2000,
+        retryableStatusCodes: [429, 500, 503],
+        onRetry: (attempt, error, delayMs) => {
+          console.log(
+            `[API Route] Extraction failed (attempt ${attempt}/3). Retrying in ${delayMs}ms...`,
+            error.message || error
+          );
+        },
+      }
+    );
 
     // Validate the extracted data
     const validationResult = validateReceiptData(extractionResult.extractedData);

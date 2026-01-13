@@ -16,6 +16,7 @@ import { useI18n } from '@/lib/i18n/context';
 import { getImageBlob, storeImage } from '@/lib/storage/images';
 import { UPLOAD_CONSTRAINTS } from '@/lib/utils/constants';
 import { formatFileSize } from '@/lib/utils/format';
+import { retryApiCall } from '@/lib/utils/retry';
 import type { Receipt, UploadQueueItem } from '@/types/receipt';
 import {
   AlertCircle,
@@ -277,19 +278,35 @@ export default function UploadPage() {
       console.log('[Upload] NODE_ENV:', process.env.NODE_ENV);
       console.log('[Upload] isDevelopment:', isDevelopment);
 
-      const response = await fetch('/api/extract', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await retryApiCall(
+        () => fetch('/api/extract', {
+          method: 'POST',
+          body: formData,
+        }),
+        {
+          maxRetries: 3,
+          initialDelayMs: 2000,
+          retryableStatusCodes: [429, 500, 503],
+          onRetry: (attempt, error, delayMs) => {
+            // Update UI to show retry status
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === id
+                  ? { ...f, error: `Retrying (${attempt}/3) in ${Math.round(delayMs / 1000)}s...` }
+                  : f
+              )
+            );
+          },
+        }
+      );
+
+      // Clear any retry error message on success
+      setFiles((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, error: undefined } : f))
+      );
 
       if (!response.ok) {
-        // Handle 429 rate limit error gracefully
-        if (response.status === 429) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Rate limit exceeded. Please wait a moment and try again.');
-        }
-
-        // Handle other errors
+        // Handle non-retryable errors
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to process receipt');
       }
