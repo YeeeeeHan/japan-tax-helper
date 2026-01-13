@@ -11,7 +11,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Rate limit: requests per minute per IP
-const RATE_LIMIT = parseInt(process.env.RATE_LIMIT_MAX || '10', 10);
+// Default: 100 RPM (paid tier) - change to 5 for free tier
+const RATE_LIMIT = parseInt(process.env.RATE_LIMIT_MAX || '100', 10);
 
 // Check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development';

@@ -387,7 +387,8 @@ export default function UploadPage() {
     // Determine concurrency based on tier
     // In dev mode: use devTier from switcher
     // In production: use NEXT_PUBLIC_GEMINI_TIER env var
-    const tier = isDevelopment ? devTier : (process.env.NEXT_PUBLIC_GEMINI_TIER || 'free');
+    // Default: 'paid' tier (5 concurrent) - change to 'free' for free tier (2 concurrent)
+    const tier = isDevelopment ? devTier : (process.env.NEXT_PUBLIC_GEMINI_TIER || 'paid');
     const concurrency = tier === 'paid'
       ? PROCESSING_SETTINGS.CONCURRENCY.PAID_TIER
       : PROCESSING_SETTINGS.CONCURRENCY.FREE_TIER;
