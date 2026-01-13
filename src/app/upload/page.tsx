@@ -283,7 +283,15 @@ export default function UploadPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process receipt');
+        // Handle 429 rate limit error gracefully
+        if (response.status === 429) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Rate limit exceeded. Please wait a moment and try again.');
+        }
+
+        // Handle other errors
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to process receipt');
       }
 
       const result = await response.json();
@@ -356,6 +364,9 @@ export default function UploadPage() {
     for (const file of files) {
       if (file.status === 'pending') {
         await processFile(file);
+        // Add a small delay between requests to avoid rate limiting
+        // This helps when processing many files at once
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -381,6 +392,9 @@ export default function UploadPage() {
       progress: 0,
       error: undefined,
     });
+
+    // Add a delay before retrying (helpful if previous failure was rate limit)
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Process the file
     await processFile({
