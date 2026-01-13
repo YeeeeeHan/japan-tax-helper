@@ -757,7 +757,7 @@ export default function DashboardPage() {
                     // 270° clockwise (or -90°)
                     originalX = centerY - relY;
                     originalY = centerX + relX;
-                  } else {
+                  } else { 
                     // 0° or no rotation
                     originalX = x;
                     originalY = y;
