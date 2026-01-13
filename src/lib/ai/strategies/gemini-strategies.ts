@@ -4,15 +4,45 @@ import type { GeminiExtractionResponse } from '@/types/receipt';
 import { RECEIPT_EXTRACTION_PROMPT } from '../prompts';
 
 /**
- * Extract receipt data using Gemini 2.0 Flash (current production model)
+ * Extract receipt data using Gemini 2.5 Flash (RECOMMENDED)
+ * Cost: ~$0.0016 per image (84% cheaper than 2.0)
+ * Quality: Excellent - Latest stable model
+ * Model: gemini-2.5-flash (stable)
+ */
+export async function extractWithGemini25Flash(
+  imageBase64: string,
+  mimeType: string,
+  apiKey: string
+): Promise<GeminiExtractionResponse> {
+  return extractWithGeminiModel(imageBase64, mimeType, apiKey, 'gemini-2.5-flash');
+}
+
+/**
+ * Extract receipt data using Gemini 2.5 Flash Lite (BUDGET)
+ * Cost: ~$0.0005 per image (95% cheaper than 2.0)
+ * Quality: Good - Faster, cheaper, good for clear receipts
+ * Model: gemini-2.5-flash-lite (stable)
+ */
+export async function extractWithGemini25FlashLite(
+  imageBase64: string,
+  mimeType: string,
+  apiKey: string
+): Promise<GeminiExtractionResponse> {
+  return extractWithGeminiModel(imageBase64, mimeType, apiKey, 'gemini-2.5-flash-lite');
+}
+
+/**
+ * Extract receipt data using Gemini 2.0 Flash (DEPRECATED)
+ * @deprecated Will be retired March 3, 2026 - Use extractWithGemini25Flash() instead
  * Cost: ~$0.01 per image
- * Quality: Highest
+ * Quality: High
  */
 export async function extractWithGemini20Flash(
   imageBase64: string,
   mimeType: string,
   apiKey: string
 ): Promise<GeminiExtractionResponse> {
+  console.warn('[DEPRECATION WARNING] gemini-2.0-flash-exp will be retired on March 3, 2026. Please migrate to gemini-2.5-flash.');
   return extractWithGeminiModel(imageBase64, mimeType, apiKey, 'gemini-2.0-flash-exp');
 }
 

@@ -7,18 +7,23 @@ import { RECEIPT_EXTRACTION_PROMPT } from './prompts';
 /**
  * Extract receipt data using Gemini Vision API
  * This is called from the API route (/api/extract)
+ *
+ * @deprecated Use extractWithStrategy() from strategies/index.ts instead
+ * This legacy function is maintained for backward compatibility only
  */
 export async function extractReceiptData(
   imageBase64: string,
   mimeType: string,
   apiKey: string
 ): Promise<GeminiExtractionResponse> {
+  console.warn('[DEPRECATION] Direct use of extractReceiptData() is deprecated. Use extractWithStrategy() instead.');
+
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
 
   const genAI = new GoogleGenerativeAI(apiKey);
 
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.1, // Low temperature for factual extraction
       topP: 0.95,

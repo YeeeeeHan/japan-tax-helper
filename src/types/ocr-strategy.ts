@@ -2,7 +2,9 @@
 // This is a dev-only feature to compare different OCR approaches
 
 export type OCRStrategy =
-  | 'gemini-2.0-flash'      // Current: Good quality, ~$10/1k images
+  | 'gemini-2.5-flash'      // Recommended: Latest stable, 84% cheaper, ~$1.6/1k images
+  | 'gemini-2.5-flash-lite' // Budget: Ultra-fast, 95% cheaper, ~$0.5/1k images
+  | 'gemini-2.0-flash'      // DEPRECATED (retires Mar 3, 2026): Use gemini-2.5-flash instead
   | 'gemini-1.5-flash'      // Cheaper: 70% cost reduction, ~$3/1k images
   | 'claude-sonnet'         // Best for Japanese: Excellent spatial reasoning, ~$4/1k images
   | 'paddle-ocr'            // Free: Self-hosted, good for Japanese (requires GPU)
@@ -22,21 +24,56 @@ export interface OCRStrategyConfig {
 
 export const OCR_STRATEGIES: OCRStrategyConfig[] = [
   {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash (Recommended)',
+    description: 'Latest stable model. Best quality, 84% cheaper than 2.0.',
+    costPerImage: '~$0.0016',
+    quality: 'high',
+    isImplemented: true,
+    pros: [
+      'Latest stable model (no deprecation risk)',
+      '84% cheaper than Gemini 2.0',
+      'Excellent Japanese OCR accuracy',
+      'Direct JSON output',
+      'No pipeline complexity',
+    ],
+    cons: [
+      'API dependency',
+    ],
+  },
+  {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite (Budget)',
+    description: 'Ultra-fast, ultra-cheap. 95% cost reduction vs 2.0.',
+    costPerImage: '~$0.0005',
+    quality: 'medium',
+    isImplemented: true,
+    pros: [
+      '95% cheaper than Gemini 2.0',
+      'Fastest processing time',
+      'Good enough for clear receipts',
+      'Direct JSON output',
+    ],
+    cons: [
+      'Lower accuracy on faded/complex receipts',
+      'API dependency',
+    ],
+  },
+  {
     id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    description: 'End-to-end VLM extraction. Good quality, moderate cost.',
+    name: 'Gemini 2.0 Flash (DEPRECATED)',
+    description: '⚠️ RETIRES MARCH 3, 2026 - Use gemini-2.5-flash instead',
     costPerImage: '~$0.01',
     quality: 'high',
     isImplemented: true,
     pros: [
       'Good accuracy for Japanese receipts',
       'Handles vertical text well',
-      'Direct JSON output',
-      'No pipeline complexity',
     ],
     cons: [
-      'Higher cost than alternatives',
-      'API dependency',
+      '⚠️ WILL BE RETIRED MARCH 3, 2026',
+      'Higher cost than 2.5 Flash',
+      'Use gemini-2.5-flash instead',
     ],
   },
   {
@@ -146,5 +183,5 @@ export interface StrategyTestResult {
 // Storage key for dev settings
 export const DEV_STRATEGY_STORAGE_KEY = 'dev_ocr_strategy';
 
-// Default strategy
-export const DEFAULT_OCR_STRATEGY: OCRStrategy = 'gemini-2.0-flash';
+// Default strategy (updated to 2.5 Flash - stable, cheaper, no deprecation)
+export const DEFAULT_OCR_STRATEGY: OCRStrategy = 'gemini-2.5-flash';

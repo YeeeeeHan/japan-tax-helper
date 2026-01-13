@@ -28,7 +28,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "mcp__plugin_playwright_playwright__browser_handle_dialog",
-      "mcp__plugin_playwright_playwright__browser_type"
+      "mcp__plugin_playwright_playwright__browser_type",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:www.aifreeapi.com)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
     ]
   }
 }

@@ -3,7 +3,12 @@
 
 import type { GeminiExtractionResponse } from '@/types/receipt';
 import type { OCRStrategy } from '@/types/ocr-strategy';
-import { extractWithGemini20Flash, extractWithGemini15Flash } from './gemini-strategies';
+import {
+  extractWithGemini25Flash,
+  extractWithGemini25FlashLite,
+  extractWithGemini20Flash,
+  extractWithGemini15Flash
+} from './gemini-strategies';
 import { extractWithPaddleOCR } from './paddle-strategy';
 import { extractWithConfidenceRouting } from './confidence-routing';
 import { extractWithQwenVL } from './qwen-strategy';
@@ -29,6 +34,16 @@ export async function extractWithStrategy(
   let estimatedCost: number;
 
   switch (strategy) {
+    case 'gemini-2.5-flash':
+      result = await extractWithGemini25Flash(imageBase64, mimeType, apiKey);
+      estimatedCost = 0.0016;
+      break;
+
+    case 'gemini-2.5-flash-lite':
+      result = await extractWithGemini25FlashLite(imageBase64, mimeType, apiKey);
+      estimatedCost = 0.0005;
+      break;
+
     case 'gemini-2.0-flash':
       result = await extractWithGemini20Flash(imageBase64, mimeType, apiKey);
       estimatedCost = 0.01;
@@ -69,9 +84,10 @@ export async function extractWithStrategy(
       break;
 
     default:
-      // Fallback to Gemini 2.0 Flash
-      result = await extractWithGemini20Flash(imageBase64, mimeType, apiKey);
-      estimatedCost = 0.01;
+      // Fallback to Gemini 2.5 Flash (stable, recommended)
+      console.warn(`[Strategy] Unknown strategy "${strategy}", using default: gemini-2.5-flash`);
+      result = await extractWithGemini25Flash(imageBase64, mimeType, apiKey);
+      estimatedCost = 0.0016;
   }
 
   const processingTimeMs = Date.now() - startTime;
