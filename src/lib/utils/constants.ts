@@ -80,6 +80,16 @@ export const QUEUE_SETTINGS = {
   RETRY_DELAY: 1000,   // Initial retry delay in ms
 } as const;
 
+// Parallel processing settings (based on Gemini API tier)
+export const PROCESSING_SETTINGS = {
+  CONCURRENCY: {
+    FREE_TIER: 2,  // Safe for 5 RPM (Gemini free tier)
+    PAID_TIER: 5,  // Safe for 150 RPM (Gemini paid tier)
+  },
+  STAGGER_DELAY_MS: 200, // Delay between starting each concurrent request (prevents thundering herd)
+  SEQUENTIAL_DELAY_MS: 500, // Delay between requests in sequential mode
+} as const;
+
 // IndexedDB settings
 export const DB_NAME = 'JapanTaxHelper';
 export const DB_VERSION = 1;

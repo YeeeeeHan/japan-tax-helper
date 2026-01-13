@@ -14,9 +14,10 @@ import {
 } from '@/lib/db/operations';
 import { useI18n } from '@/lib/i18n/context';
 import { getImageBlob, storeImage } from '@/lib/storage/images';
-import { UPLOAD_CONSTRAINTS } from '@/lib/utils/constants';
+import { UPLOAD_CONSTRAINTS, PROCESSING_SETTINGS } from '@/lib/utils/constants';
 import { formatFileSize } from '@/lib/utils/format';
 import { retryApiCall } from '@/lib/utils/retry';
+import { processConcurrently } from '@/lib/utils/concurrency';
 import type { Receipt, UploadQueueItem } from '@/types/receipt';
 import {
   AlertCircle,
@@ -378,14 +379,42 @@ export default function UploadPage() {
     setShowConfirmModal(false);
     setIsProcessing(true);
 
-    for (const file of files) {
-      if (file.status === 'pending') {
-        await processFile(file);
-        // Add a small delay between requests to avoid rate limiting
-        // This helps when processing many files at once
-        await new Promise(resolve => setTimeout(resolve, 500));
+    const filesToProcess = files.filter((f) => f.status === 'pending');
+
+    // Determine concurrency based on environment
+    // Free tier: 2 concurrent (safe for 5 RPM)
+    // Paid tier: 5 concurrent (safe for 150 RPM)
+    const tier = process.env.NEXT_PUBLIC_GEMINI_TIER || 'free';
+    const concurrency = tier === 'paid'
+      ? PROCESSING_SETTINGS.CONCURRENCY.PAID_TIER
+      : PROCESSING_SETTINGS.CONCURRENCY.FREE_TIER;
+
+    console.log(`[Upload] Processing ${filesToProcess.length} files with concurrency: ${concurrency} (tier: ${tier})`);
+
+    // Process files in parallel with limited concurrency
+    await processConcurrently(
+      filesToProcess,
+      async (file, index) => {
+        // Stagger starts to avoid exact simultaneity
+        if (index > 0) {
+          await new Promise(resolve =>
+            setTimeout(resolve, PROCESSING_SETTINGS.STAGGER_DELAY_MS * (index % concurrency))
+          );
+        }
+        return processFile(file);
+      },
+      {
+        concurrency,
+        staggerDelayMs: PROCESSING_SETTINGS.STAGGER_DELAY_MS,
+        stopOnError: false, // Continue processing other files even if one fails
+        onProgress: (completed, total) => {
+          console.log(`[Upload] Progress: ${completed}/${total} files completed`);
+        },
+        onError: (error, file, index) => {
+          console.error(`[Upload] File ${index + 1} failed:`, error.message || error);
+        },
       }
-    }
+    );
 
     setIsProcessing(false);
   };
