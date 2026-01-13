@@ -60,7 +60,8 @@ export async function extractWithGemini15Flash(
 }
 
 /**
- * Core Gemini extraction function
+ * Core Gemini extraction function with smart token expansion
+ * Starts with 2048 tokens, retries with more if JSON is truncated
  */
 async function extractWithGeminiModel(
   imageBase64: string,
@@ -69,50 +70,126 @@ async function extractWithGeminiModel(
   modelName: string
 ): Promise<GeminiExtractionResponse> {
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
-
   const genAI = new GoogleGenerativeAI(apiKey);
 
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      temperature: 0.1,
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: 2048,
-      responseMimeType: 'application/json',
-    },
-  });
+  // Token limits to try (exponential expansion)
+  const tokenLimits = [2048, 4096, 8192];
+  let lastError: any;
 
-  const imagePart = {
-    inlineData: {
-      data: imageBase64,
-      mimeType: mimeType,
-    },
-  };
+  for (let attempt = 0; attempt < tokenLimits.length; attempt++) {
+    const maxTokens = tokenLimits[attempt];
 
+    try {
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          temperature: 0.1,
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: maxTokens,
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const imagePart = {
+        inlineData: {
+          data: imageBase64,
+          mimeType: mimeType,
+        },
+      };
+
+      console.log(`[Gemini] Calling ${modelName} (attempt ${attempt + 1}/${tokenLimits.length}, maxTokens: ${maxTokens})...`);
+      const result = await model.generateContent([RECEIPT_EXTRACTION_PROMPT, imagePart]);
+      const responseText = result.response.text();
+      console.log(`[Gemini] ${modelName} returned successfully (${responseText.length} chars)`);
+
+      const parsed = parseGeminiResponse(responseText, modelName);
+
+      // Success - tag with metadata
+      parsed.rawText = `[Extracted by ${modelName} with ${maxTokens} tokens]\n${responseText}`;
+
+      if (attempt > 0) {
+        console.log(`[Gemini] Success after token expansion (${tokenLimits[0]} → ${maxTokens})`);
+      }
+
+      return parsed;
+    } catch (error: any) {
+      lastError = error;
+
+      // Check if error is due to truncated JSON (incomplete output)
+      const isTruncatedJson =
+        error.message?.includes('Unexpected end of JSON input') ||
+        error.message?.includes('Unterminated string') ||
+        error.message?.includes('Invalid response format from AI');
+
+      if (isTruncatedJson && attempt < tokenLimits.length - 1) {
+        // Try again with more tokens
+        console.warn(`[Gemini] JSON truncated with ${maxTokens} tokens. Retrying with ${tokenLimits[attempt + 1]} tokens...`);
+        continue;
+      }
+
+      // Not a truncation error or out of retries - throw
+      console.error(`Gemini API error (${modelName}, ${maxTokens} tokens):`, error);
+      throw new Error(`Failed to extract receipt data with ${modelName}`);
+    }
+  }
+
+  // All token limits exhausted
+  throw lastError;
+}
+
+/**
+ * Attempt to salvage incomplete JSON by fixing common truncation issues
+ */
+function attemptFallbackParse(jsonText: string): any {
+  console.log('[Gemini Fallback] Attempting to fix incomplete JSON...');
+
+  let fixed = jsonText;
+
+  // Strategy 1: Try to close incomplete strings
+  // Count quotes to see if we have an unclosed string
+  const quoteCount = (fixed.match(/"/g) || []).length;
+  if (quoteCount % 2 !== 0) {
+    fixed += '"';
+    console.log('[Gemini Fallback] Added closing quote');
+  }
+
+  // Strategy 2: Close any unclosed objects/arrays by counting braces
+  const openBraces = (fixed.match(/{/g) || []).length;
+  const closeBraces = (fixed.match(/}/g) || []).length;
+  const openBrackets = (fixed.match(/\[/g) || []).length;
+  const closeBrackets = (fixed.match(/]/g) || []).length;
+
+  // Add missing closing braces
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    fixed += ']';
+    console.log('[Gemini Fallback] Added closing bracket');
+  }
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    fixed += '}';
+    console.log('[Gemini Fallback] Added closing brace');
+  }
+
+  // Strategy 3: Remove trailing comma if present (invalid JSON)
+  fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+
+  // Try parsing the fixed JSON
   try {
-    console.log(`[Gemini] Calling ${modelName}...`);
-    const result = await model.generateContent([RECEIPT_EXTRACTION_PROMPT, imagePart]);
-    const responseText = result.response.text();
-    console.log(`[Gemini] ${modelName} returned successfully`);
-
-    // Log response length for debugging
-    console.log(`[Gemini] Response length: ${responseText.length} chars`);
-
-    const parsed = parseGeminiResponse(responseText, modelName);
-    // Tag the response with model name for debugging
-    parsed.rawText = `[Extracted by ${modelName}]\n${responseText}`;
-    return parsed;
+    const result = JSON.parse(fixed);
+    console.log('[Gemini Fallback] Successfully salvaged incomplete JSON!');
+    return result;
   } catch (error) {
-    console.error(`Gemini API error (${modelName}):`, error);
-    throw new Error(`Failed to extract receipt data with ${modelName}`);
+    console.error('[Gemini Fallback] Could not salvage JSON even after fixes');
+    throw new Error('Invalid response format from AI');
   }
 }
 
 /**
- * Parse and validate Gemini API response
+ * Parse and validate Gemini API response with fallback for truncated JSON
  */
 function parseGeminiResponse(responseText: string, modelName: string = 'gemini'): GeminiExtractionResponse {
+  let parsed: any;
+
   try {
     let jsonText = responseText.trim();
 
@@ -127,7 +204,14 @@ function parseGeminiResponse(responseText: string, modelName: string = 'gemini')
     console.log(`[Gemini Parse] First 100 chars: ${jsonText.substring(0, 100)}`);
     console.log(`[Gemini Parse] Last 100 chars: ${jsonText.substring(Math.max(0, jsonText.length - 100))}`);
 
-    const parsed = JSON.parse(jsonText);
+    // Try standard JSON parse first
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch (parseError: any) {
+      // Attempt fallback parsing for incomplete JSON
+      console.warn(`[Gemini Parse] Standard parse failed, attempting fallback...`);
+      parsed = attemptFallbackParse(jsonText);
+    }
 
     const requiredFields = [
       'issuerName',
