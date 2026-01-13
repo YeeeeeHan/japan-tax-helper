@@ -11,6 +11,7 @@ import {
   DollarSign,
   Gauge,
   X,
+  Layers,
 } from 'lucide-react';
 import {
   OCR_STRATEGIES,
@@ -20,6 +21,11 @@ import {
   type OCRStrategyConfig,
 } from '@/types/ocr-strategy';
 
+// Storage key for dev tier selection
+export const DEV_TIER_STORAGE_KEY = 'dev_gemini_tier';
+
+export type GeminiTier = 'free' | 'paid';
+
 interface DevStrategySwitcherProps {
   onStrategyChange?: (strategy: OCRStrategy) => void;
 }
@@ -27,13 +33,19 @@ interface DevStrategySwitcherProps {
 export function DevStrategySwitcher({ onStrategyChange }: DevStrategySwitcherProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<OCRStrategy>(DEFAULT_OCR_STRATEGY);
+  const [selectedTier, setSelectedTier] = useState<GeminiTier>('free');
   const [showDetails, setShowDetails] = useState<OCRStrategy | null>(null);
 
-  // Load saved strategy from localStorage on mount
+  // Load saved strategy and tier from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(DEV_STRATEGY_STORAGE_KEY);
     if (saved && OCR_STRATEGIES.some(s => s.id === saved)) {
       setSelectedStrategy(saved as OCRStrategy);
+    }
+
+    const savedTier = localStorage.getItem(DEV_TIER_STORAGE_KEY);
+    if (savedTier === 'free' || savedTier === 'paid') {
+      setSelectedTier(savedTier);
     }
   }, []);
 
@@ -50,7 +62,18 @@ export function DevStrategySwitcher({ onStrategyChange }: DevStrategySwitcherPro
     onStrategyChange?.(strategy);
   };
 
+  // Save tier to localStorage when changed
+  const handleTierChange = (tier: GeminiTier) => {
+    console.log('[DevStrategySwitcher] Changing tier to:', tier);
+    setSelectedTier(tier);
+    localStorage.setItem(DEV_TIER_STORAGE_KEY, tier);
+
+    // Dispatch custom event to notify all components
+    window.dispatchEvent(new CustomEvent('gemini-tier-changed', { detail: tier }));
+  };
+
   const currentStrategy = OCR_STRATEGIES.find(s => s.id === selectedStrategy);
+  const concurrency = selectedTier === 'paid' ? 5 : 2;
 
   const getQualityColor = (quality: string) => {
     switch (quality) {
@@ -211,8 +234,45 @@ export function DevStrategySwitcher({ onStrategyChange }: DevStrategySwitcherPro
           </div>
 
           {/* Footer */}
-          <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-            <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 space-y-3">
+            {/* Tier Switcher */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Layers className="w-4 h-4 text-gray-600" />
+                <span className="text-xs font-semibold text-gray-700">API Tier (Concurrency)</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleTierChange('free')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    selectedTier === 'free'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="font-semibold">Free Tier</div>
+                    <div className="text-xs opacity-80">2 concurrent</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleTierChange('paid')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    selectedTier === 'paid'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="text-center">
+                    <div className="font-semibold">Paid Tier</div>
+                    <div className="text-xs opacity-80">5 concurrent</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Current Strategy Info */}
+            <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-200">
               <span>
                 Current: <strong className="text-purple-600">{currentStrategy?.name}</strong>
               </span>
@@ -308,4 +368,43 @@ export function useOCRStrategy(): OCRStrategy {
   }, []);
 
   return strategy;
+}
+
+// Hook to get current Gemini tier (for dev testing)
+export function useGeminiTier(): GeminiTier {
+  const [tier, setTier] = useState<GeminiTier>('free');
+
+  useEffect(() => {
+    // Load initial value from localStorage
+    const saved = localStorage.getItem(DEV_TIER_STORAGE_KEY);
+    if (saved === 'free' || saved === 'paid') {
+      setTier(saved);
+      console.log('[useGeminiTier] Loaded from localStorage:', saved);
+    }
+
+    // Listen for custom event (same window changes)
+    const handleCustomEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<GeminiTier>;
+      console.log('[useGeminiTier] Received custom event:', customEvent.detail);
+      setTier(customEvent.detail);
+    };
+
+    // Listen for storage changes (different tab changes)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === DEV_TIER_STORAGE_KEY && e.newValue) {
+        console.log('[useGeminiTier] Received storage event:', e.newValue);
+        setTier(e.newValue as GeminiTier);
+      }
+    };
+
+    window.addEventListener('gemini-tier-changed', handleCustomEvent);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('gemini-tier-changed', handleCustomEvent);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  return tier;
 }

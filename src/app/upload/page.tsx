@@ -3,6 +3,7 @@
 import {
   DevStrategySwitcher,
   useOCRStrategy,
+  useGeminiTier,
 } from '@/components/dev/DevStrategySwitcher';
 import { LanguageSwitcher } from '@/components/shared/LanguageSwitcher';
 import {
@@ -69,8 +70,10 @@ export default function UploadPage() {
     null
   );
 
-  // Get current OCR strategy from dev switcher
+  // Get current OCR strategy and tier from dev switcher (dev mode)
+  // Falls back to env vars in production
   const currentStrategy = useOCRStrategy();
+  const devTier = useGeminiTier();
 
   // Scroll to thumbnails when files are first added
   useEffect(() => {
@@ -381,15 +384,15 @@ export default function UploadPage() {
 
     const filesToProcess = files.filter((f) => f.status === 'pending');
 
-    // Determine concurrency based on environment
-    // Free tier: 2 concurrent (safe for 5 RPM)
-    // Paid tier: 5 concurrent (safe for 150 RPM)
-    const tier = process.env.NEXT_PUBLIC_GEMINI_TIER || 'free';
+    // Determine concurrency based on tier
+    // In dev mode: use devTier from switcher
+    // In production: use NEXT_PUBLIC_GEMINI_TIER env var
+    const tier = isDevelopment ? devTier : (process.env.NEXT_PUBLIC_GEMINI_TIER || 'free');
     const concurrency = tier === 'paid'
       ? PROCESSING_SETTINGS.CONCURRENCY.PAID_TIER
       : PROCESSING_SETTINGS.CONCURRENCY.FREE_TIER;
 
-    console.log(`[Upload] Processing ${filesToProcess.length} files with concurrency: ${concurrency} (tier: ${tier})`);
+    console.log(`[Upload] Processing ${filesToProcess.length} files with concurrency: ${concurrency} (tier: ${tier}, isDev: ${isDevelopment})`);
 
     // Process files in parallel with limited concurrency
     await processConcurrently(
