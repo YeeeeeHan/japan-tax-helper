@@ -920,8 +920,8 @@ export default function DashboardPage() {
             </div>
 
             {/* Bulk actions bar */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => {
@@ -950,33 +950,34 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* Visual divider + Keyboard hint */}
-                <div className="hidden lg:flex items-center gap-3">
-                  <div className="h-3 w-px bg-gray-300" />
-                  <span className="text-xs text-gray-400 font-light tracking-wide">
-                    {t('dashboard_keyboard_hint')}
-                  </span>
-                </div>
+                {isSelectMode && selectedIds.size > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={handleBulkDelete}
+                      className="text-xs px-2.5 py-1 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1.5 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>{t('bulk_delete', { count: selectedIds.size })}</span>
+                    </button>
+                    <button
+                      onClick={handleBulkApprove}
+                      className="text-xs px-2.5 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1.5 transition-colors"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>
+                        {t('bulk_approve', { count: selectedIds.size })}
+                      </span>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {isSelectMode && selectedIds.size > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={handleBulkDelete}
-                    className="text-xs px-2.5 py-1 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-1.5 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>{t('bulk_delete', { count: selectedIds.size })}</span>
-                  </button>
-                  <button
-                    onClick={handleBulkApprove}
-                    className="text-xs px-2.5 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1.5 transition-colors"
-                  >
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>
-                      {t('bulk_approve', { count: selectedIds.size })}
-                    </span>
-                  </button>
+              {/* Keyboard hint - moved to separate row, subtle styling */}
+              {!isSelectMode && receipts.length > 0 && (
+                <div className="hidden lg:block">
+                  <span className="text-[10px] text-gray-400 font-light italic">
+                    {t('dashboard_keyboard_hint')}
+                  </span>
                 </div>
               )}
             </div>
