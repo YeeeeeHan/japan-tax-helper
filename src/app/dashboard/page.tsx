@@ -494,7 +494,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
+    <div className="h-screen flex flex-col overflow-hidden overflow-x-hidden bg-gray-50">
       {/* Header */}
       <header className="flex-shrink-0 bg-white border-b border-gray-200">
         <div className="px-3 sm:px-6 py-3 sm:py-4">
@@ -861,7 +861,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden overflow-x-hidden">
         {/* Left sidebar - Receipt list */}
         <div
           ref={listContainerRef}
@@ -1086,7 +1086,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right panel - Receipt details */}
-        <div className={`flex-1 bg-gray-50 overflow-y-auto ${
+        <div className={`flex-1 bg-gray-50 overflow-y-auto overflow-x-hidden ${
           selectedReceipt ? 'block' : 'hidden lg:block'
         }`}>
           {selectedReceipt && editedData ? (
