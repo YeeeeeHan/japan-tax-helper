@@ -497,24 +497,24 @@ export default function DashboardPage() {
     <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
       {/* Header */}
       <header className="flex-shrink-0 bg-white border-b border-gray-200">
-        <div className="px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
+        <div className="px-3 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2 min-w-0">
               <button
                 onClick={() => router.push('/upload')}
-                className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+                className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 flex-shrink-0"
                 title={t('action_back_to_upload')}
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">税</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-lg sm:text-xl">税</span>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
                 TaxHelper Japan
               </h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <LanguageSwitcher />
               <button
                 onClick={() => {
@@ -525,18 +525,19 @@ export default function DashboardPage() {
                   }
                 }}
                 disabled={isExporting}
-                className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${
+                className={`px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center ${
                   canExport && !isExporting
                     ? 'bg-primary-600 text-white hover:bg-primary-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
+                title={isExporting ? t('exporting') : t('export')}
               >
                 {isExporting ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <FileDown className="w-4 h-4" />
                 )}
-                <span className="hidden sm:inline">
+                <span className="hidden sm:inline sm:ml-2">
                   {isExporting ? t('exporting') : t('export')}
                 </span>
               </button>
@@ -546,21 +547,21 @@ export default function DashboardPage() {
       </header>
 
       {/* Workflow Progress Bar */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                   workflowStep >= 1
                     ? 'bg-green-500 text-white'
                     : 'bg-gray-200 text-gray-500'
                 }`}
               >
                 {workflowStep > 1 ? (
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 ) : (
-                  <Upload className="w-4 h-4" />
+                  <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
                 )}
               </div>
               <span
@@ -582,7 +583,7 @@ export default function DashboardPage() {
             />
             <div className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                   workflowStep > 2
                     ? 'bg-green-500 text-white'
                     : workflowStep === 2
@@ -591,9 +592,9 @@ export default function DashboardPage() {
                 }`}
               >
                 {workflowStep > 2 ? (
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                 ) : (
-                  <ClipboardCheck className="w-4 h-4" />
+                  <ClipboardCheck className="w-3 h-3 sm:w-4 sm:h-4" />
                 )}
               </div>
               <span
@@ -620,13 +621,13 @@ export default function DashboardPage() {
             />
             <div className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                   workflowStep === 3
                     ? 'bg-green-500 text-white'
                     : 'bg-gray-200 text-gray-500'
                 }`}
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3 h-3 sm:w-4 sm:h-4" />
               </div>
               <span
                 className={`ml-2 text-sm font-medium hidden sm:inline ${
@@ -864,7 +865,9 @@ export default function DashboardPage() {
         {/* Left sidebar - Receipt list */}
         <div
           ref={listContainerRef}
-          className="w-full lg:w-1/3 xl:w-1/4 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0"
+          className={`w-full lg:w-1/3 xl:w-1/4 bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0 ${
+            selectedReceipt ? 'hidden lg:block' : 'block'
+          }`}
         >
           {/* Search bar */}
           <div className="px-3 py-2 border-b border-gray-200">
@@ -1083,9 +1086,20 @@ export default function DashboardPage() {
         </div>
 
         {/* Right panel - Receipt details */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto">
+        <div className={`flex-1 bg-gray-50 overflow-y-auto ${
+          selectedReceipt ? 'block' : 'hidden lg:block'
+        }`}>
           {selectedReceipt && editedData ? (
             <div className="p-3 sm:p-4">
+              {/* Mobile back button */}
+              <button
+                onClick={() => setSelectedReceipt(null)}
+                className="lg:hidden flex items-center gap-2 mb-3 text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span className="text-sm font-medium">戻る</span>
+              </button>
+
               {/* Navigation header */}
               <div className="mb-2 flex items-center">
                 <div className="flex items-center gap-1">

@@ -570,21 +570,21 @@ export default function UploadPage() {
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header - Simplified */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xl">税</span>
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-lg sm:text-xl">税</span>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
                 TaxHelper Japan
               </h1>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <LanguageSwitcher />
               <button
                 onClick={() => router.push('/dashboard')}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Dashboard
               </button>
