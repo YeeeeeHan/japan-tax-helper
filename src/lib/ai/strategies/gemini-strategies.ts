@@ -95,7 +95,11 @@ async function extractWithGeminiModel(
     const result = await model.generateContent([RECEIPT_EXTRACTION_PROMPT, imagePart]);
     const responseText = result.response.text();
     console.log(`[Gemini] ${modelName} returned successfully`);
-    const parsed = parseGeminiResponse(responseText);
+
+    // Log response length for debugging
+    console.log(`[Gemini] Response length: ${responseText.length} chars`);
+
+    const parsed = parseGeminiResponse(responseText, modelName);
     // Tag the response with model name for debugging
     parsed.rawText = `[Extracted by ${modelName}]\n${responseText}`;
     return parsed;
@@ -108,14 +112,20 @@ async function extractWithGeminiModel(
 /**
  * Parse and validate Gemini API response
  */
-function parseGeminiResponse(responseText: string): GeminiExtractionResponse {
+function parseGeminiResponse(responseText: string, modelName: string = 'gemini'): GeminiExtractionResponse {
   try {
     let jsonText = responseText.trim();
+
+    // Remove markdown code blocks if present
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     } else if (jsonText.startsWith('```')) {
       jsonText = jsonText.replace(/```\n?/g, '');
     }
+
+    // Log first/last 100 chars for debugging truncation issues
+    console.log(`[Gemini Parse] First 100 chars: ${jsonText.substring(0, 100)}`);
+    console.log(`[Gemini Parse] Last 100 chars: ${jsonText.substring(Math.max(0, jsonText.length - 100))}`);
 
     const parsed = JSON.parse(jsonText);
 
@@ -164,7 +174,9 @@ function parseGeminiResponse(responseText: string): GeminiExtractionResponse {
       warnings: warnings.length > 0 ? warnings : undefined,
     };
   } catch (error) {
-    console.error('Failed to parse Gemini response:', error);
+    console.error(`[Gemini Parse Error] Model: ${modelName}`, error);
+    console.error(`[Gemini Parse Error] Response text (full):`, responseText);
+    console.error(`[Gemini Parse Error] Response length:`, responseText.length);
     throw new Error('Invalid response format from AI');
   }
 }
