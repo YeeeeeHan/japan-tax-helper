@@ -13,6 +13,7 @@ import {
   getUploadQueue,
   updateUploadQueueItem,
 } from '@/lib/db/operations';
+import { db } from '@/lib/db/schema';
 import { useI18n } from '@/lib/i18n/context';
 import { getImageBlob, storeImage } from '@/lib/storage/images';
 import { UPLOAD_CONSTRAINTS, PROCESSING_SETTINGS } from '@/lib/utils/constants';
@@ -23,11 +24,14 @@ import type { Receipt, UploadQueueItem } from '@/types/receipt';
 import {
   AlertCircle,
   ArrowRight,
+  Camera,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   CloudUpload,
   FileImage,
+  FolderOpen,
   Info,
   Loader2,
   RefreshCcw,
@@ -36,7 +40,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -69,6 +73,7 @@ export default function UploadPage() {
   const [thumbnailsRef, setThumbnailsRef] = useState<HTMLDivElement | null>(
     null
   );
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Get current OCR strategy and tier from dev switcher (dev mode)
   // Falls back to env vars in production
@@ -501,6 +506,20 @@ export default function UploadPage() {
     router.push('/dashboard');
   };
 
+  const goToFirstNeedsReview = async () => {
+    // Navigate to first needs-review receipt, or dashboard if none
+    const needsReview = await db.receipts
+      .where('needsReview')
+      .equals(1)
+      .first();
+
+    if (needsReview) {
+      router.push(`/dashboard?receipt=${needsReview.id}`);
+    } else {
+      router.push('/dashboard');
+    }
+  };
+
   const pendingCount = files.filter((f) => f.status === 'pending').length;
   const processingCount = files.filter(
     (f) => f.status === 'processing' || f.status === 'uploading'
@@ -567,17 +586,17 @@ export default function UploadPage() {
   }, [previewFile, files]);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-gray-50 pb-20 sm:pb-24">
       {/* Header - Simplified */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center space-x-2 min-w-0">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-lg sm:text-xl">税</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 border-2 border-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-primary-600 font-bold text-lg sm:text-xl">税</span>
               </div>
               <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
-                TaxHelper Japan
+                {t('app_name')}
               </h1>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -586,7 +605,7 @@ export default function UploadPage() {
                 onClick={() => router.push('/dashboard')}
                 className="px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Dashboard
+                {t('dashboard')}
               </button>
             </div>
           </div>
@@ -638,6 +657,23 @@ export default function UploadPage() {
             `}
           >
             <input {...getInputProps()} />
+
+            {/* Hidden camera input */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={(e) => {
+                const selectedFiles = Array.from(e.target.files || []);
+                onDrop(selectedFiles);
+                // Reset input to allow selecting the same file again
+                e.target.value = '';
+              }}
+              className="hidden"
+            />
+
             <div className="flex flex-col items-center">
               <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-3">
                 <CloudUpload className="w-6 h-6 text-primary-600" />
@@ -648,12 +684,31 @@ export default function UploadPage() {
               <p className="text-xs text-gray-500 mb-3">
                 {t('upload_dropzone_subtitle')}
               </p>
-              <button
-                type="button"
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-              >
-                {t('upload_file_select')}
-              </button>
+
+              {/* Two-button layout for camera and file selection */}
+              <div className="flex flex-col sm:flex-row gap-2 w-full px-4">
+                {/* Camera button - Primary on mobile */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    cameraInputRef.current?.click();
+                  }}
+                  className="flex-1 px-4 py-3 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 flex items-center justify-center gap-2"
+                >
+                  <Camera className="w-5 h-5" />
+                  <span>{t('upload_camera_button')}</span>
+                </button>
+
+                {/* File select button - Secondary */}
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+                >
+                  <FolderOpen className="w-5 h-5" />
+                  <span>{t('upload_file_select')}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -766,7 +821,7 @@ export default function UploadPage() {
       {/* Sticky Bottom Bar */}
       {files.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4">
             {/* Progress bar (shown during processing) */}
             {isProcessing && (
               <div className="mb-4">
@@ -830,11 +885,11 @@ export default function UploadPage() {
               <div className="flex items-center gap-3">
                 {completedCount === files.length && files.length > 0 ? (
                   <button
-                    onClick={goToDashboard}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
+                    onClick={goToFirstNeedsReview}
+                    className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
                   >
-                    <span>{t('upload_go_to_dashboard')}</span>
-                    <ArrowRight className="w-5 h-5" />
+                    <ClipboardCheck className="w-5 h-5" />
+                    <span>{t('upload_review_first')}</span>
                   </button>
                 ) : (
                   <button
@@ -977,7 +1032,7 @@ export default function UploadPage() {
                 setPreviewZoom((z) => Math.max(0.5, z - 0.25));
               }}
               className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
-              title="Zoom out"
+              title={t('zoom_out')}
             >
               <ZoomOut className="w-5 h-5" />
             </button>
@@ -990,7 +1045,7 @@ export default function UploadPage() {
                 setPreviewZoom((z) => Math.min(3, z + 0.25));
               }}
               className="p-2 hover:bg-white/20 rounded-full text-white transition-colors"
-              title="Zoom in"
+              title={t('zoom_in')}
             >
               <ZoomIn className="w-5 h-5" />
             </button>

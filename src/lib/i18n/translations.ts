@@ -13,9 +13,15 @@ export const translations = {
     export: 'エクスポート',
     search: '検索...',
     close: '閉じる',
+    back: '戻る',
     dashboard: 'ダッシュボード',
     upload: 'アップロード',
     settings: '設定',
+    zoom_in: '拡大',
+    zoom_out: '縮小',
+    confidence: '信頼度',
+    key_esc: 'ESC',
+    receipt_image: '領収書画像',
 
     // Upload page
     upload_title: '領収書一括アップロード',
@@ -45,6 +51,8 @@ export const translations = {
     upload_start_processing: '処理を開始',
     upload_retry: '再試行',
     upload_click_to_retry: 'クリックして再試行',
+    upload_camera_button: 'カメラで撮影',
+    upload_review_first: '次の領収書を確認',
 
     // Dashboard
     dashboard_title: '領収書詳細',
@@ -65,6 +73,10 @@ export const translations = {
     workflow_upload: 'アップロード',
     workflow_review: '確認',
     workflow_export: 'エクスポート',
+    workflow_all_complete_title: 'すべて確認完了！',
+    workflow_all_complete_message: 'すべての領収書の確認が完了しました。Excelファイルをエクスポートできます。',
+    workflow_export_now: '今すぐエクスポート',
+    workflow_review_more: '続けて確認',
 
     // Export blocked
     export_blocked_title: 'エクスポートできません',
@@ -94,6 +106,7 @@ export const translations = {
     field_category: '勘定科目',
     field_tax_rate: '適用税率',
     field_verify: '確認',
+    field_missing_value: '値がありません',
     field_check_required: '要確認',
 
     // Status
@@ -154,6 +167,9 @@ export const translations = {
     image_zoom_mode_panel: 'パネル',
     image_lens_size: 'レンズサイズ',
     image_loading_hires: '高解像度読み込み中...',
+    image_tap_to_expand: 'タップで拡大',
+    image_expand: '拡大',
+    image_collapse: '縮小',
 
     // AI Analysis
     ai_complete: 'AI解析完了',
@@ -215,9 +231,15 @@ export const translations = {
     export: 'Export',
     search: 'Search...',
     close: 'Close',
+    back: 'Back',
     dashboard: 'Dashboard',
     upload: 'Upload',
     settings: 'Settings',
+    zoom_in: 'Zoom in',
+    zoom_out: 'Zoom out',
+    confidence: 'confidence',
+    key_esc: 'ESC',
+    receipt_image: 'Receipt image',
 
     // Upload page
     upload_title: 'Batch Upload Receipts',
@@ -247,6 +269,8 @@ export const translations = {
     upload_start_processing: 'Start Processing',
     upload_retry: 'Retry',
     upload_click_to_retry: 'Click to retry',
+    upload_camera_button: 'Take Photo',
+    upload_review_first: 'Review Next Receipt',
 
     // Dashboard
     dashboard_title: 'Receipt Details',
@@ -267,6 +291,10 @@ export const translations = {
     workflow_upload: 'Upload',
     workflow_review: 'Review',
     workflow_export: 'Export',
+    workflow_all_complete_title: 'All Done!',
+    workflow_all_complete_message: 'All receipts have been reviewed. You can now export to Excel.',
+    workflow_export_now: 'Export Now',
+    workflow_review_more: 'Review More',
 
     // Export blocked
     export_blocked_title: 'Cannot Export Yet',
@@ -296,6 +324,7 @@ export const translations = {
     field_category: 'Expense Category',
     field_tax_rate: 'Tax Rate',
     field_verify: 'Verify',
+    field_missing_value: 'Missing value',
     field_check_required: 'Required',
 
     // Status
@@ -356,6 +385,9 @@ export const translations = {
     image_zoom_mode_panel: 'Panel',
     image_lens_size: 'Lens size',
     image_loading_hires: 'Loading high-res...',
+    image_tap_to_expand: 'Tap to expand',
+    image_expand: 'Expand',
+    image_collapse: 'Collapse',
 
     // AI Analysis
     ai_complete: 'AI Analysis Complete',

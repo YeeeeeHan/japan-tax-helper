@@ -36,6 +36,7 @@ import {
   Download,
   FileDown,
   Maximize2,
+  Minimize2,
   RotateCcw,
   RotateCw,
   Search,
@@ -69,6 +70,7 @@ export default function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [showExportBlockedModal, setShowExportBlockedModal] = useState(false);
+  const [showExportPrompt, setShowExportPrompt] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const receiptRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -80,6 +82,9 @@ export default function DashboardPage() {
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Image expand/collapse state (mobile)
+  const [imageExpanded, setImageExpanded] = useState(false);
 
   // Magnifier state
   const [showMagnifier, setShowMagnifier] = useState(false);
@@ -124,6 +129,11 @@ export default function DashboardPage() {
       };
     }
   }, [selectedReceipt, imageRotation]);
+
+  // Reset image expansion when receipt changes
+  useEffect(() => {
+    setImageExpanded(false);
+  }, [selectedReceipt?.id]);
 
   // Close fullscreen on escape
   useEffect(() => {
@@ -191,7 +201,7 @@ export default function DashboardPage() {
 
     if (status === 'ok') {
       return (
-        <span title={`${confidencePercent}% confidence`}>
+        <span title={`${confidencePercent}% ${t('confidence')}`}>
           <CheckCircle2 className="w-4 h-4 text-green-600" />
         </span>
       );
@@ -200,8 +210,8 @@ export default function DashboardPage() {
       <span
         title={
           confidencePercent !== null
-            ? `${confidencePercent}% confidence - needs review`
-            : 'Missing value'
+            ? `${confidencePercent}% ${t('confidence')} - ${t('status_needs_review')}`
+            : t('field_missing_value')
         }
       >
         <AlertCircle className="w-4 h-4 text-amber-600" />
@@ -377,10 +387,17 @@ export default function DashboardPage() {
     await loadReceipts();
     await loadCounts();
 
-    const currentIndex = receipts.findIndex((r) => r.id === selectedReceipt.id);
-    if (currentIndex < receipts.length - 1) {
-      setSelectedReceipt(receipts[currentIndex + 1]);
+    // Auto-advance to next needs-review receipt
+    const remainingNeedsReview = receipts.filter(
+      (r) => r.needsReview && r.id !== selectedReceipt.id
+    );
+
+    if (remainingNeedsReview.length > 0) {
+      // Go to next needs-review receipt
+      setSelectedReceipt(remainingNeedsReview[0]);
     } else {
+      // All reviewed! Show export prompt
+      setShowExportPrompt(true);
       setSelectedReceipt(null);
     }
   };
@@ -482,11 +499,11 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center mb-4">
-          <span className="text-white font-bold text-xl">税</span>
+        <div className="w-10 h-10 border-2 border-primary-600 rounded-lg flex items-center justify-center mb-4">
+          <span className="text-primary-600 font-bold text-xl">税</span>
         </div>
         <h1 className="text-xl font-bold text-gray-900 mb-2">
-          Japanese Tax Helper
+          {t('app_name')}
         </h1>
         <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
       </div>
@@ -510,11 +527,11 @@ export default function DashboardPage() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-lg sm:text-xl">税</span>
+              <div className="w-8 h-8 sm:w-10 sm:h-10 border-2 border-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-primary-600 font-bold text-lg sm:text-xl">税</span>
               </div>
               <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
-                TaxHelper Japan
+                {t('app_name')}
               </h1>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -528,9 +545,9 @@ export default function DashboardPage() {
                   }
                 }}
                 disabled={isExporting}
-                className={`px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center ${
+                className={`px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-all ${
                   canExport && !isExporting
-                    ? 'bg-primary-600 text-white hover:bg-primary-700'
+                    ? 'bg-primary-600 text-white hover:bg-primary-700 hover:scale-105 shadow-lg'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
                 title={isExporting ? t('exporting') : t('export')}
@@ -538,7 +555,7 @@ export default function DashboardPage() {
                 {isExporting ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <FileDown className="w-4 h-4" />
+                  <FileDown className={`w-5 h-5 ${canExport && !isExporting ? 'animate-bounce' : ''}`} />
                 )}
                 <span className="hidden sm:inline sm:ml-2">
                   {isExporting ? t('exporting') : t('export')}
@@ -690,6 +707,44 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Export Completion Prompt Modal */}
+      {showExportPrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                {t('workflow_all_complete_title')}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {t('workflow_all_complete_message')}
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setShowExportPrompt(false);
+                  handleExport();
+                }}
+                className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
+              >
+                <FileDown className="w-5 h-5" />
+                <span>{t('workflow_export_now')}</span>
+              </button>
+              <button
+                onClick={() => setShowExportPrompt(false)}
+                className="w-full px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                {t('workflow_review_more')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fullscreen Image Modal */}
       {isFullscreen && selectedImageUrl && (
         <div
@@ -780,7 +835,7 @@ export default function DashboardPage() {
           >
             <img
               src={selectedImageUrl}
-              alt="Receipt"
+              alt={t('receipt_image')}
               className={`max-w-[90vw] max-h-[85vh] object-contain ${
                 shouldTransition ? 'transition-transform duration-200' : ''
               }`}
@@ -859,7 +914,7 @@ export default function DashboardPage() {
 
           {/* Keyboard hint */}
           <div className="absolute bottom-6 right-6 text-white/50 text-xs hidden sm:block">
-            ESC {t('image_exit_fullscreen')}
+            {t('key_esc')} {t('image_exit_fullscreen')}
           </div>
         </div>
       )}
@@ -1100,7 +1155,7 @@ export default function DashboardPage() {
                 className="lg:hidden flex items-center gap-2 mb-3 text-gray-600 hover:text-gray-900"
               >
                 <ArrowLeft className="w-5 h-5" />
-                <span className="text-sm font-medium">戻る</span>
+                <span className="text-sm font-medium">{t('back')}</span>
               </button>
 
               {/* Navigation header */}
@@ -1141,16 +1196,21 @@ export default function DashboardPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                {/* Left: Simple image viewer with rotate + fullscreen - takes 3/5 of space */}
+                {/* Left: Collapsible image viewer - takes 3/5 of space */}
                 <div
-                  className="lg:col-span-3 bg-gray-900 rounded-lg overflow-hidden relative"
-                  style={{ height: '600px' }}
+                  className={`lg:col-span-3 bg-gray-900 rounded-lg overflow-hidden relative transition-all duration-300 ${
+                    imageExpanded ? 'h-[500px]' : 'h-[120px] lg:h-[600px]'
+                  }`}
+                  style={{ touchAction: 'pan-y' }}
                 >
                   {selectedImageUrl && (
-                    <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                    <div
+                      className="w-full h-full flex items-center justify-center overflow-hidden cursor-pointer lg:cursor-default"
+                      onClick={() => !imageExpanded && setImageExpanded(true)}
+                    >
                       <img
                         src={selectedImageUrl}
-                        alt="Receipt"
+                        alt={t('receipt_image')}
                         className={`max-w-full max-h-full object-contain ${
                           shouldTransition
                             ? 'transition-transform duration-200'
@@ -1162,8 +1222,23 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* Simple toolbar - rotate + fullscreen only */}
+                  {/* Toolbar with collapse toggle */}
                   <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-2 py-1">
+                    {/* Collapse/expand button - mobile only */}
+                    <button
+                      onClick={() => setImageExpanded(!imageExpanded)}
+                      className="lg:hidden p-1 hover:bg-white/20 rounded-full text-white transition-colors"
+                      title={imageExpanded ? t('image_collapse') : t('image_expand')}
+                    >
+                      {imageExpanded ? (
+                        <Minimize2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    <div className="lg:hidden w-px h-3 bg-white/30" />
+
+                    {/* Rotation buttons */}
                     <button
                       onClick={() => setImageRotation((r) => r - 90)}
                       className="p-1 hover:bg-white/20 rounded-full text-white transition-colors"
@@ -1179,6 +1254,8 @@ export default function DashboardPage() {
                       <RotateCw className="w-3.5 h-3.5" />
                     </button>
                     <div className="w-px h-3 bg-white/30" />
+
+                    {/* Fullscreen button */}
                     <button
                       onClick={() => setIsFullscreen(true)}
                       className="p-1 hover:bg-white/20 rounded-full text-white transition-colors"
@@ -1186,6 +1263,8 @@ export default function DashboardPage() {
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
                     </button>
+
+                    {/* Reset rotation button */}
                     {imageRotation !== 0 && (
                       <>
                         <div className="w-px h-3 bg-white/30" />
@@ -1202,7 +1281,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Right: Editable form - takes 2/5 of space */}
-                <div className="lg:col-span-2 space-y-3">
+                <div className="lg:col-span-2 space-y-3 pb-24 lg:pb-0">
                   {/* Needs Review Banner */}
                   {selectedReceipt.needsReview &&
                     (() => {
@@ -1446,7 +1525,7 @@ export default function DashboardPage() {
                                   suggestedCategory: '工具器具備品',
                                 })
                               }
-                              className="mt-2 text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                              className="mt-2 text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
                             >
                               {t(
                                 'warning_equipment_change_category' as TranslationKey
@@ -1497,8 +1576,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Action buttons */}
-                  <div className="flex gap-2 pt-2">
+                  {/* Action buttons - Desktop only */}
+                  <div className="hidden lg:flex gap-2 pt-2">
                     <button
                       onClick={handleDelete}
                       className="px-4 py-2.5 text-sm border-2 border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2 font-medium"
@@ -1511,6 +1590,28 @@ export default function DashboardPage() {
                       className="flex-1 px-4 py-2.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium"
                     >
                       <CheckCircle2 className="w-4 h-4" />
+                      <span>{t('action_approve')}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile: Sticky footer action bar */}
+              <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 safe-area-inset-bottom">
+                <div className="px-4 py-3">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleDelete}
+                      className="px-6 py-3 min-h-[48px] border-2 border-red-300 text-red-600 rounded-lg hover:bg-red-50 flex items-center justify-center gap-2 font-medium"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      <span className="hidden sm:inline">{t('delete')}</span>
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      className="flex-1 px-6 py-3 min-h-[48px] bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium"
+                    >
+                      <CheckCircle2 className="w-5 h-5" />
                       <span>{t('action_approve')}</span>
                     </button>
                   </div>
