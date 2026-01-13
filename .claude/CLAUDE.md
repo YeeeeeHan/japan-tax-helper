@@ -180,6 +180,23 @@ Edit `src/lib/ai/prompts.ts`:
 - Use Japanese field names for clarity
 - Test with sample receipts after changes
 
+### Upgrading to Gemini API Paid Tier
+
+**See `.claude/PAID_TIER_UPGRADE.md` for complete step-by-step instructions.**
+
+**Quick Summary:**
+1. Enable billing at https://aistudio.google.com/apikey
+2. Link Google Cloud billing account ($20/month minimum)
+3. Update `RATE_LIMIT_MAX=100` in environment variables
+4. Same API key automatically gets higher limits
+
+**Benefits:**
+- **30x rate limit increase:** 5 RPM → 150 RPM
+- Process 30+ receipts simultaneously without errors
+- Better for production/batch processing
+
+**Cost:** $20/month + $1.60 per 1,000 receipts (with gemini-2.5-flash)
+
 ### Changing Confidence Thresholds
 
 Edit `src/lib/utils/constants.ts`:
