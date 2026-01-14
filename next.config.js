@@ -5,6 +5,10 @@ const nextConfig = {
   images: {
     domains: [],
   },
+  // Optimize package imports to avoid loading entire libraries
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
   // Additional security headers for API routes
   async headers() {
     return [
