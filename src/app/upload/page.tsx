@@ -81,13 +81,15 @@ export default function UploadPage() {
   const devTier = useGeminiTier();
 
   // Scroll to thumbnails when files are first added
+  const hasFiles = files.length > 0;
+
   useEffect(() => {
-    if (files.length > 0 && thumbnailsRef) {
+    if (hasFiles && thumbnailsRef) {
       setTimeout(() => {
         thumbnailsRef.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 100);
     }
-  }, [files.length > 0 ? 1 : 0, thumbnailsRef]);
+  }, [hasFiles, thumbnailsRef]);
 
   // Restore upload queue from IndexedDB on mount
   useEffect(() => {
@@ -555,20 +557,38 @@ export default function UploadPage() {
     ? files.findIndex((f) => f.id === previewFile.id)
     : -1;
 
-  // Keyboard navigation for preview modal
-  useEffect(() => {
-    if (!previewFile) return;
+  // Keyboard navigation for preview modal - use refs to avoid re-subscribing
+  const previewFileRef = useRef(previewFile);
+  const filesRef = useRef(files);
 
+  useEffect(() => {
+    previewFileRef.current = previewFile;
+    filesRef.current = files;
+  }, [previewFile, files]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const currentPreviewFile = previewFileRef.current;
+      const currentFiles = filesRef.current;
+
+      if (!currentPreviewFile) return;
+
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        navigatePreview('prev');
+        const currentIndex = currentFiles.findIndex((f) => f.id === currentPreviewFile.id);
+        const newIndex = currentIndex > 0 ? currentIndex - 1 : currentFiles.length - 1;
+        setPreviewFile(currentFiles[newIndex]);
+        setPreviewZoom(1);
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        navigatePreview('next');
+        const currentIndex = currentFiles.findIndex((f) => f.id === currentPreviewFile.id);
+        const newIndex = currentIndex < currentFiles.length - 1 ? currentIndex + 1 : 0;
+        setPreviewFile(currentFiles[newIndex]);
+        setPreviewZoom(1);
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        closePreview();
+        setPreviewFile(null);
+        setPreviewZoom(1);
       } else if (e.key === '+' || e.key === '=') {
         e.preventDefault();
         setPreviewZoom((z) => Math.min(3, z + 0.25));
@@ -580,7 +600,7 @@ export default function UploadPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previewFile, files]);
+  }, []); // Stable subscription - no re-subscribing
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 sm:pb-24">
