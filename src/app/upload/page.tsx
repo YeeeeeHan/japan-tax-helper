@@ -164,13 +164,6 @@ export default function UploadPage() {
         const queueId = uuidv4();
         const imageId = uuidv4();
 
-        // Store image immediately
-        try {
-          await storeImage(file, imageId);
-        } catch (error) {
-          console.error('Error storing image:', error);
-        }
-
         // Create upload queue item
         const queueItem: UploadQueueItem = {
           id: queueId,
@@ -184,11 +177,15 @@ export default function UploadPage() {
           progress: 0,
         };
 
-        // Add to upload queue
+        // Start both operations immediately (parallel execution)
+        const storeImagePromise = storeImage(file, imageId);
+        const addToQueuePromise = addToUploadQueue(queueItem);
+
+        // Await both together - no waterfall delay
         try {
-          await addToUploadQueue(queueItem);
+          await Promise.all([storeImagePromise, addToQueuePromise]);
         } catch (error) {
-          console.error('Error adding to upload queue:', error);
+          console.error('Error during file setup:', error);
         }
 
         return {
