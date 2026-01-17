@@ -15,7 +15,7 @@ import {
 } from '@/lib/db/operations';
 import { db } from '@/lib/db/schema';
 import { useI18n } from '@/lib/i18n/context';
-import { getImageBlob, storeImage } from '@/lib/storage/images';
+import { getImageBlob, storeImage, isHeicFile, updateStoredImage, base64ToBlob } from '@/lib/storage/images';
 import { UPLOAD_CONSTRAINTS, PROCESSING_SETTINGS } from '@/lib/utils/constants';
 import { formatFileSize } from '@/lib/utils/format';
 import { retryApiCall } from '@/lib/utils/retry';
@@ -103,14 +103,22 @@ export default function UploadPage() {
         const restoredFiles: FileWithStatus[] = await Promise.all(
           queueItems.map(async (item) => {
             // Generate thumbnail URL from stored blob
+            // Skip unprocessed HEIC files - browser can't display them
+            // Completed HEIC files have been converted to JPEG on the server
             let thumbnailUrl: string | undefined;
-            try {
-              const blob = await getImageBlob(item.imageId);
-              if (blob) {
-                thumbnailUrl = URL.createObjectURL(blob);
+            const isHeic = item.mimeType === 'image/heic' || item.mimeType === 'image/heif' ||
+              item.fileName.toLowerCase().endsWith('.heic') || item.fileName.toLowerCase().endsWith('.heif');
+            const isUnprocessedHeic = isHeic && item.status !== 'completed';
+
+            if (!isUnprocessedHeic) {
+              try {
+                const blob = await getImageBlob(item.imageId);
+                if (blob) {
+                  thumbnailUrl = URL.createObjectURL(blob);
+                }
+              } catch (e) {
+                console.error('Error loading thumbnail for', item.imageId, e);
               }
-            } catch (e) {
-              console.error('Error loading thumbnail for', item.imageId, e);
             }
 
             return {
@@ -140,9 +148,14 @@ export default function UploadPage() {
   }, []); // Run once on mount
 
   // Generate thumbnails for uploaded files
+  // HEIC files show placeholder until processed (server converts them)
   useEffect(() => {
     files.forEach((f) => {
-      if (!f.thumbnailUrl && f.file && f.file.type.startsWith('image/')) {
+      // Skip if already has thumbnail or no file
+      if (f.thumbnailUrl || !f.file) return;
+
+      // For regular images (not HEIC), create thumbnail directly
+      if (f.file.type.startsWith('image/') && !isHeicFile(f.file)) {
         const url = URL.createObjectURL(f.file);
         setFiles((prev) =>
           prev.map((file) =>
@@ -150,7 +163,9 @@ export default function UploadPage() {
           )
         );
       }
+      // HEIC files will get thumbnail after processing (server converts them)
     });
+
     // Cleanup URLs on unmount
     return () => {
       files.forEach((f) => {
@@ -326,16 +341,35 @@ export default function UploadPage() {
       );
       await updateUploadQueueItem(queueId, { progress: 80 });
 
+      // Handle converted image from server (for HEIC files)
+      let displayBlob = blob;
+      let displayMimeType = fileWithStatus.mimeType;
+      if (result.data.convertedImage) {
+        // Server converted HEIC to JPEG - update stored image and thumbnail
+        const convertedBlob = base64ToBlob(result.data.convertedImage, 'image/jpeg');
+        await updateStoredImage(imageId, convertedBlob);
+        displayBlob = convertedBlob;
+        displayMimeType = 'image/jpeg';
+
+        // Update thumbnail for this file
+        const thumbnailUrl = URL.createObjectURL(convertedBlob);
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id ? { ...f, thumbnailUrl } : f
+          )
+        );
+      }
+
       // Create receipt
       const receipt: Receipt = {
         id: uuidv4(),
         createdAt: new Date(),
         updatedAt: new Date(),
         imageId,
-        imageUrl: URL.createObjectURL(blob),
+        imageUrl: URL.createObjectURL(displayBlob),
         fileName: fileWithStatus.fileName,
         fileSize: fileWithStatus.fileSize,
-        mimeType: fileWithStatus.mimeType,
+        mimeType: displayMimeType,
         extractedData: result.data.extractedData,
         processingStatus: 'completed',
         confidence: result.data.confidence,

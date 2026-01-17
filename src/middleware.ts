@@ -16,6 +16,7 @@ export function middleware(request: NextRequest) {
 
   // Content Security Policy
   // Allow self, inline scripts/styles (needed for Next.js), and Gemini API
+  // worker-src blob: needed for heic2any HEIC image conversion
   response.headers.set(
     'Content-Security-Policy',
     [
@@ -25,6 +26,7 @@ export function middleware(request: NextRequest) {
       "img-src 'self' blob: data:",
       "font-src 'self'",
       "connect-src 'self' https://generativelanguage.googleapis.com",
+      "worker-src 'self' blob:",
       "frame-ancestors 'none'",
     ].join('; ')
   );

@@ -2,13 +2,49 @@ import { db } from '../db/schema';
 import { IMAGE_COMPRESSION } from '../utils/constants';
 
 /**
+ * Check if a file is HEIC format
+ */
+export function isHeicFile(file: File | Blob): boolean {
+  // Check MIME type
+  if (file.type === 'image/heic' || file.type === 'image/heif') {
+    return true;
+  }
+  // Check file extension for File objects
+  if (file instanceof File) {
+    const name = file.name.toLowerCase();
+    return name.endsWith('.heic') || name.endsWith('.heif');
+  }
+  return false;
+}
+
+/**
+ * Convert base64 string to Blob
+ */
+export function base64ToBlob(base64: string, mimeType: string = 'image/jpeg'): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
+/**
  * Compress an image file using Canvas API
+ * HEIC files are stored as-is (server will convert them during processing)
  */
 export async function compressImage(
   file: File,
   maxDimension: number = IMAGE_COMPRESSION.MAX_DIMENSION,
   quality: number = IMAGE_COMPRESSION.QUALITY
 ): Promise<Blob> {
+  // For HEIC files, store as-is - server will convert during processing
+  // Browser cannot display HEIC, but we need to keep original for API
+  if (isHeicFile(file)) {
+    return file;
+  }
+
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
@@ -55,6 +91,7 @@ export async function compressImage(
     };
 
     img.onerror = () => {
+      URL.revokeObjectURL(img.src);
       reject(new Error('Failed to load image'));
     };
 
@@ -66,7 +103,7 @@ export async function compressImage(
  * Store a compressed image in IndexedDB
  */
 export async function storeImage(file: File, imageId: string): Promise<string> {
-  // Compress the image first
+  // Compress the image first (HEIC files stored as-is)
   const compressedBlob = await compressImage(file);
 
   // Store in IndexedDB
@@ -76,6 +113,13 @@ export async function storeImage(file: File, imageId: string): Promise<string> {
   });
 
   return imageId;
+}
+
+/**
+ * Update an existing stored image with a new blob (e.g., after server-side HEIC conversion)
+ */
+export async function updateStoredImage(imageId: string, newBlob: Blob): Promise<void> {
+  await db.images.update(imageId, { blob: newBlob });
 }
 
 /**
