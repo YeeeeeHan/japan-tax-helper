@@ -52,6 +52,7 @@ interface FileWithStatus {
   error?: string;
   receiptId?: string;
   thumbnailUrl?: string;
+  isLoadingPreview?: boolean; // True while HEIC is being converted server-side
   queueId: string; // Reference to UploadQueueItem in IndexedDB
   imageId: string; // Reference to stored image blob
   fileName: string;
@@ -103,22 +104,15 @@ export default function UploadPage() {
         const restoredFiles: FileWithStatus[] = await Promise.all(
           queueItems.map(async (item) => {
             // Generate thumbnail URL from stored blob
-            // Skip unprocessed HEIC files - browser can't display them
-            // Completed HEIC files have been converted to JPEG on the server
+            // HEIC files are now converted to JPEG on client, so all files can show preview
             let thumbnailUrl: string | undefined;
-            const isHeic = item.mimeType === 'image/heic' || item.mimeType === 'image/heif' ||
-              item.fileName.toLowerCase().endsWith('.heic') || item.fileName.toLowerCase().endsWith('.heif');
-            const isUnprocessedHeic = isHeic && item.status !== 'completed';
-
-            if (!isUnprocessedHeic) {
-              try {
-                const blob = await getImageBlob(item.imageId);
-                if (blob) {
-                  thumbnailUrl = URL.createObjectURL(blob);
-                }
-              } catch (e) {
-                console.error('Error loading thumbnail for', item.imageId, e);
+            try {
+              const blob = await getImageBlob(item.imageId);
+              if (blob) {
+                thumbnailUrl = URL.createObjectURL(blob);
               }
+            } catch (e) {
+              console.error('Error loading thumbnail for', item.imageId, e);
             }
 
             return {
@@ -147,23 +141,27 @@ export default function UploadPage() {
     restoreQueue();
   }, []); // Run once on mount
 
-  // Generate thumbnails for uploaded files
-  // HEIC files show placeholder until processed (server converts them)
+  // Generate thumbnails for files that don't have them yet (fallback)
+  // Skip files that are loading preview (HEIC being converted server-side)
   useEffect(() => {
-    files.forEach((f) => {
-      // Skip if already has thumbnail or no file
-      if (f.thumbnailUrl || !f.file) return;
+    files.forEach(async (f) => {
+      // Skip if already has thumbnail or is loading preview (HEIC conversion in progress)
+      if (f.thumbnailUrl || f.isLoadingPreview) return;
 
-      // For regular images (not HEIC), create thumbnail directly
-      if (f.file.type.startsWith('image/') && !isHeicFile(f.file)) {
-        const url = URL.createObjectURL(f.file);
-        setFiles((prev) =>
-          prev.map((file) =>
-            file.id === f.id ? { ...file, thumbnailUrl: url } : file
-          )
-        );
+      // Try to get thumbnail from stored blob (already converted for HEIC)
+      try {
+        const blob = await getImageBlob(f.imageId);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          setFiles((prev) =>
+            prev.map((file) =>
+              file.id === f.id && !file.thumbnailUrl ? { ...file, thumbnailUrl: url } : file
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Error generating thumbnail for', f.id, error);
       }
-      // HEIC files will get thumbnail after processing (server converts them)
     });
 
     // Cleanup URLs on unmount
@@ -181,6 +179,10 @@ export default function UploadPage() {
         const queueId = uuidv4();
         const imageId = uuidv4();
 
+        // Determine stored mimeType (HEIC files are converted to JPEG)
+        const isHeic = isHeicFile(file);
+        const storedMimeType = isHeic ? 'image/jpeg' : file.type;
+
         // Create upload queue item
         const queueItem: UploadQueueItem = {
           id: queueId,
@@ -188,21 +190,51 @@ export default function UploadPage() {
           updatedAt: new Date(),
           fileName: file.name,
           fileSize: file.size,
-          mimeType: file.type,
+          mimeType: storedMimeType, // Store as JPEG for HEIC files
           imageId,
           status: 'pending',
           progress: 0,
         };
 
-        // Start both operations immediately (parallel execution)
-        const storeImagePromise = storeImage(file, imageId);
-        const addToQueuePromise = addToUploadQueue(queueItem);
-
-        // Await both together - no waterfall delay
+        // Store image first (may need server-side conversion for HEIC)
+        let needsServerConversion = false;
         try {
-          await Promise.all([storeImagePromise, addToQueuePromise]);
+          const result = await storeImage(file, imageId);
+          needsServerConversion = result.needsServerConversion;
+          await addToUploadQueue(queueItem);
         } catch (error) {
           console.error('Error during file setup:', error);
+        }
+
+        // Generate thumbnail
+        let thumbnailUrl: string | undefined;
+
+        if (needsServerConversion) {
+          // HEIC needs server-side conversion - return immediately with loading state
+          // The preview will be fetched asynchronously below
+          return {
+            id: queueId,
+            file,
+            status: 'pending' as const,
+            progress: 0,
+            queueId,
+            imageId,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: storedMimeType,
+            thumbnailUrl: undefined,
+            isLoadingPreview: true,
+          };
+        } else {
+          // Non-HEIC or client-side conversion succeeded
+          try {
+            const storedBlob = await getImageBlob(imageId);
+            if (storedBlob) {
+              thumbnailUrl = URL.createObjectURL(storedBlob);
+            }
+          } catch (error) {
+            console.error('Error generating thumbnail:', error);
+          }
         }
 
         return {
@@ -214,12 +246,65 @@ export default function UploadPage() {
           imageId,
           fileName: file.name,
           fileSize: file.size,
-          mimeType: file.type,
+          mimeType: storedMimeType,
+          thumbnailUrl,
         };
       })
     );
 
+    // Add files to state immediately
     setFiles((prev) => [...prev, ...newFiles]);
+
+    // For files needing server-side preview, fetch asynchronously
+    newFiles.forEach(async (fileStatus) => {
+      if (fileStatus.isLoadingPreview && fileStatus.file) {
+        console.log('[HEIC] Fetching server-side preview for:', fileStatus.fileName);
+        try {
+          const formData = new FormData();
+          formData.append('file', fileStatus.file);
+          const response = await fetch('/api/preview', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Convert base64 to blob and create URL
+            const convertedBlob = base64ToBlob(data.image, data.mimeType);
+            const thumbnailUrl = URL.createObjectURL(convertedBlob);
+
+            // Update stored image with converted version
+            await updateStoredImage(fileStatus.imageId, convertedBlob);
+            console.log('[HEIC] Server-side preview loaded successfully');
+
+            // Update state with thumbnail
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === fileStatus.id
+                  ? { ...f, thumbnailUrl, isLoadingPreview: false }
+                  : f
+              )
+            );
+          } else {
+            console.error('[HEIC] Server preview failed:', await response.text());
+            // Clear loading state even on failure
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === fileStatus.id ? { ...f, isLoadingPreview: false } : f
+              )
+            );
+          }
+        } catch (error) {
+          console.error('[HEIC] Error fetching server preview:', error);
+          // Clear loading state on error
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === fileStatus.id ? { ...f, isLoadingPreview: false } : f
+            )
+          );
+        }
+      }
+    });
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -809,6 +894,10 @@ export default function UploadPage() {
                       alt={fileWithStatus.fileName}
                       className="w-full h-full object-cover"
                     />
+                  ) : fileWithStatus.isLoadingPreview ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
                       <FileImage className="w-6 h-6 text-gray-400" />

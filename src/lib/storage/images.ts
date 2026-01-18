@@ -18,6 +18,31 @@ export function isHeicFile(file: File | Blob): boolean {
 }
 
 /**
+ * Convert HEIC blob to JPEG using heic2any (browser-side)
+ * Uses dynamic import to avoid SSR issues
+ * Note: heic2any doesn't support all HEIC variants - returns null on failure
+ */
+export async function convertHeicToJpeg(file: File | Blob): Promise<Blob | null> {
+  try {
+    // Dynamic import to avoid window reference during SSR
+    const heic2any = (await import('heic2any')).default;
+
+    const result = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: IMAGE_COMPRESSION.QUALITY,
+    });
+
+    // heic2any can return array if multiple images, we take the first
+    return Array.isArray(result) ? result[0] : result;
+  } catch (error) {
+    // heic2any doesn't support all HEIC variants (especially newer iOS formats)
+    console.warn('[HEIC] Client-side conversion failed, will use server-side conversion:', error);
+    return null;
+  }
+}
+
+/**
  * Convert base64 string to Blob
  */
 export function base64ToBlob(base64: string, mimeType: string = 'image/jpeg'): Blob {
@@ -32,19 +57,44 @@ export function base64ToBlob(base64: string, mimeType: string = 'image/jpeg'): B
 
 /**
  * Compress an image file using Canvas API
- * HEIC files are stored as-is (server will convert them during processing)
+ * HEIC files are converted to JPEG first, then compressed
+ * Returns { blob, needsServerConversion } - if needsServerConversion is true, the blob is the original HEIC
  */
 export async function compressImage(
   file: File,
   maxDimension: number = IMAGE_COMPRESSION.MAX_DIMENSION,
   quality: number = IMAGE_COMPRESSION.QUALITY
-): Promise<Blob> {
-  // For HEIC files, store as-is - server will convert during processing
-  // Browser cannot display HEIC, but we need to keep original for API
+): Promise<{ blob: Blob; needsServerConversion: boolean }> {
+  // Handle HEIC files
   if (isHeicFile(file)) {
-    return file;
+    console.log('[HEIC] Attempting client-side conversion...');
+    const convertedBlob = await convertHeicToJpeg(file);
+
+    if (convertedBlob) {
+      console.log('[HEIC] Client-side conversion successful, size:', convertedBlob.size);
+      // Compress the converted JPEG
+      const compressed = await compressImageBlob(convertedBlob, maxDimension, quality);
+      return { blob: compressed, needsServerConversion: false };
+    } else {
+      // Client-side conversion failed, store original HEIC for server-side conversion
+      console.log('[HEIC] Storing original for server-side conversion');
+      return { blob: file, needsServerConversion: true };
+    }
   }
 
+  // For non-HEIC images, compress normally
+  const compressed = await compressImageBlob(file, maxDimension, quality);
+  return { blob: compressed, needsServerConversion: false };
+}
+
+/**
+ * Internal helper to compress an image blob using Canvas
+ */
+async function compressImageBlob(
+  imageBlob: Blob,
+  maxDimension: number,
+  quality: number
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
@@ -95,24 +145,25 @@ export async function compressImage(
       reject(new Error('Failed to load image'));
     };
 
-    img.src = URL.createObjectURL(file);
+    img.src = URL.createObjectURL(imageBlob);
   });
 }
 
 /**
  * Store a compressed image in IndexedDB
+ * Returns { imageId, needsServerConversion } - if needsServerConversion is true, HEIC needs server-side conversion for preview
  */
-export async function storeImage(file: File, imageId: string): Promise<string> {
-  // Compress the image first (HEIC files stored as-is)
-  const compressedBlob = await compressImage(file);
+export async function storeImage(file: File, imageId: string): Promise<{ imageId: string; needsServerConversion: boolean }> {
+  // Compress the image first (HEIC files may need server-side conversion)
+  const { blob, needsServerConversion } = await compressImage(file);
 
   // Store in IndexedDB
   await db.images.add({
     id: imageId,
-    blob: compressedBlob,
+    blob: blob,
   });
 
-  return imageId;
+  return { imageId, needsServerConversion };
 }
 
 /**
