@@ -15,7 +15,7 @@ import {
 } from '@/lib/db/operations';
 import { db } from '@/lib/db/schema';
 import { useI18n } from '@/lib/i18n/context';
-import { getImageBlob, storeImage } from '@/lib/storage/images';
+import { getImageBlob, storeImage, isHeicFile, updateStoredImage, base64ToBlob } from '@/lib/storage/images';
 import { UPLOAD_CONSTRAINTS, PROCESSING_SETTINGS } from '@/lib/utils/constants';
 import { formatFileSize } from '@/lib/utils/format';
 import { retryApiCall } from '@/lib/utils/retry';
@@ -52,6 +52,7 @@ interface FileWithStatus {
   error?: string;
   receiptId?: string;
   thumbnailUrl?: string;
+  isLoadingPreview?: boolean; // True while HEIC is being converted server-side
   queueId: string; // Reference to UploadQueueItem in IndexedDB
   imageId: string; // Reference to stored image blob
   fileName: string;
@@ -81,13 +82,15 @@ export default function UploadPage() {
   const devTier = useGeminiTier();
 
   // Scroll to thumbnails when files are first added
+  const hasFiles = files.length > 0;
+
   useEffect(() => {
-    if (files.length > 0 && thumbnailsRef) {
+    if (hasFiles && thumbnailsRef) {
       setTimeout(() => {
         thumbnailsRef.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }, 100);
     }
-  }, [files.length > 0 ? 1 : 0, thumbnailsRef]);
+  }, [hasFiles, thumbnailsRef]);
 
   // Restore upload queue from IndexedDB on mount
   useEffect(() => {
@@ -101,6 +104,7 @@ export default function UploadPage() {
         const restoredFiles: FileWithStatus[] = await Promise.all(
           queueItems.map(async (item) => {
             // Generate thumbnail URL from stored blob
+            // HEIC files are now converted to JPEG on client, so all files can show preview
             let thumbnailUrl: string | undefined;
             try {
               const blob = await getImageBlob(item.imageId);
@@ -137,18 +141,29 @@ export default function UploadPage() {
     restoreQueue();
   }, []); // Run once on mount
 
-  // Generate thumbnails for uploaded files
+  // Generate thumbnails for files that don't have them yet (fallback)
+  // Skip files that are loading preview (HEIC being converted server-side)
   useEffect(() => {
-    files.forEach((f) => {
-      if (!f.thumbnailUrl && f.file && f.file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(f.file);
-        setFiles((prev) =>
-          prev.map((file) =>
-            file.id === f.id ? { ...file, thumbnailUrl: url } : file
-          )
-        );
+    files.forEach(async (f) => {
+      // Skip if already has thumbnail or is loading preview (HEIC conversion in progress)
+      if (f.thumbnailUrl || f.isLoadingPreview) return;
+
+      // Try to get thumbnail from stored blob (already converted for HEIC)
+      try {
+        const blob = await getImageBlob(f.imageId);
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          setFiles((prev) =>
+            prev.map((file) =>
+              file.id === f.id && !file.thumbnailUrl ? { ...file, thumbnailUrl: url } : file
+            )
+          );
+        }
+      } catch (error) {
+        console.error('Error generating thumbnail for', f.id, error);
       }
     });
+
     // Cleanup URLs on unmount
     return () => {
       files.forEach((f) => {
@@ -164,12 +179,9 @@ export default function UploadPage() {
         const queueId = uuidv4();
         const imageId = uuidv4();
 
-        // Store image immediately
-        try {
-          await storeImage(file, imageId);
-        } catch (error) {
-          console.error('Error storing image:', error);
-        }
+        // Determine stored mimeType (HEIC files are converted to JPEG)
+        const isHeic = isHeicFile(file);
+        const storedMimeType = isHeic ? 'image/jpeg' : file.type;
 
         // Create upload queue item
         const queueItem: UploadQueueItem = {
@@ -178,17 +190,51 @@ export default function UploadPage() {
           updatedAt: new Date(),
           fileName: file.name,
           fileSize: file.size,
-          mimeType: file.type,
+          mimeType: storedMimeType, // Store as JPEG for HEIC files
           imageId,
           status: 'pending',
           progress: 0,
         };
 
-        // Add to upload queue
+        // Store image first (may need server-side conversion for HEIC)
+        let needsServerConversion = false;
         try {
+          const result = await storeImage(file, imageId);
+          needsServerConversion = result.needsServerConversion;
           await addToUploadQueue(queueItem);
         } catch (error) {
-          console.error('Error adding to upload queue:', error);
+          console.error('Error during file setup:', error);
+        }
+
+        // Generate thumbnail
+        let thumbnailUrl: string | undefined;
+
+        if (needsServerConversion) {
+          // HEIC needs server-side conversion - return immediately with loading state
+          // The preview will be fetched asynchronously below
+          return {
+            id: queueId,
+            file,
+            status: 'pending' as const,
+            progress: 0,
+            queueId,
+            imageId,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: storedMimeType,
+            thumbnailUrl: undefined,
+            isLoadingPreview: true,
+          };
+        } else {
+          // Non-HEIC or client-side conversion succeeded
+          try {
+            const storedBlob = await getImageBlob(imageId);
+            if (storedBlob) {
+              thumbnailUrl = URL.createObjectURL(storedBlob);
+            }
+          } catch (error) {
+            console.error('Error generating thumbnail:', error);
+          }
         }
 
         return {
@@ -200,12 +246,65 @@ export default function UploadPage() {
           imageId,
           fileName: file.name,
           fileSize: file.size,
-          mimeType: file.type,
+          mimeType: storedMimeType,
+          thumbnailUrl,
         };
       })
     );
 
+    // Add files to state immediately
     setFiles((prev) => [...prev, ...newFiles]);
+
+    // For files needing server-side preview, fetch asynchronously
+    newFiles.forEach(async (fileStatus) => {
+      if (fileStatus.isLoadingPreview && fileStatus.file) {
+        console.log('[HEIC] Fetching server-side preview for:', fileStatus.fileName);
+        try {
+          const formData = new FormData();
+          formData.append('file', fileStatus.file);
+          const response = await fetch('/api/preview', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Convert base64 to blob and create URL
+            const convertedBlob = base64ToBlob(data.image, data.mimeType);
+            const thumbnailUrl = URL.createObjectURL(convertedBlob);
+
+            // Update stored image with converted version
+            await updateStoredImage(fileStatus.imageId, convertedBlob);
+            console.log('[HEIC] Server-side preview loaded successfully');
+
+            // Update state with thumbnail
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === fileStatus.id
+                  ? { ...f, thumbnailUrl, isLoadingPreview: false }
+                  : f
+              )
+            );
+          } else {
+            console.error('[HEIC] Server preview failed:', await response.text());
+            // Clear loading state even on failure
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === fileStatus.id ? { ...f, isLoadingPreview: false } : f
+              )
+            );
+          }
+        } catch (error) {
+          console.error('[HEIC] Error fetching server preview:', error);
+          // Clear loading state on error
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === fileStatus.id ? { ...f, isLoadingPreview: false } : f
+            )
+          );
+        }
+      }
+    });
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -327,16 +426,35 @@ export default function UploadPage() {
       );
       await updateUploadQueueItem(queueId, { progress: 80 });
 
+      // Handle converted image from server (for HEIC files)
+      let displayBlob = blob;
+      let displayMimeType = fileWithStatus.mimeType;
+      if (result.data.convertedImage) {
+        // Server converted HEIC to JPEG - update stored image and thumbnail
+        const convertedBlob = base64ToBlob(result.data.convertedImage, 'image/jpeg');
+        await updateStoredImage(imageId, convertedBlob);
+        displayBlob = convertedBlob;
+        displayMimeType = 'image/jpeg';
+
+        // Update thumbnail for this file
+        const thumbnailUrl = URL.createObjectURL(convertedBlob);
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id ? { ...f, thumbnailUrl } : f
+          )
+        );
+      }
+
       // Create receipt
       const receipt: Receipt = {
         id: uuidv4(),
         createdAt: new Date(),
         updatedAt: new Date(),
         imageId,
-        imageUrl: URL.createObjectURL(blob),
+        imageUrl: URL.createObjectURL(displayBlob),
         fileName: fileWithStatus.fileName,
         fileSize: fileWithStatus.fileSize,
-        mimeType: fileWithStatus.mimeType,
+        mimeType: displayMimeType,
         extractedData: result.data.extractedData,
         processingStatus: 'completed',
         confidence: result.data.confidence,
@@ -558,20 +676,38 @@ export default function UploadPage() {
     ? files.findIndex((f) => f.id === previewFile.id)
     : -1;
 
-  // Keyboard navigation for preview modal
-  useEffect(() => {
-    if (!previewFile) return;
+  // Keyboard navigation for preview modal - use refs to avoid re-subscribing
+  const previewFileRef = useRef(previewFile);
+  const filesRef = useRef(files);
 
+  useEffect(() => {
+    previewFileRef.current = previewFile;
+    filesRef.current = files;
+  }, [previewFile, files]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const currentPreviewFile = previewFileRef.current;
+      const currentFiles = filesRef.current;
+
+      if (!currentPreviewFile) return;
+
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        navigatePreview('prev');
+        const currentIndex = currentFiles.findIndex((f) => f.id === currentPreviewFile.id);
+        const newIndex = currentIndex > 0 ? currentIndex - 1 : currentFiles.length - 1;
+        setPreviewFile(currentFiles[newIndex]);
+        setPreviewZoom(1);
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        navigatePreview('next');
+        const currentIndex = currentFiles.findIndex((f) => f.id === currentPreviewFile.id);
+        const newIndex = currentIndex < currentFiles.length - 1 ? currentIndex + 1 : 0;
+        setPreviewFile(currentFiles[newIndex]);
+        setPreviewZoom(1);
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        closePreview();
+        setPreviewFile(null);
+        setPreviewZoom(1);
       } else if (e.key === '+' || e.key === '=') {
         e.preventDefault();
         setPreviewZoom((z) => Math.min(3, z + 0.25));
@@ -583,7 +719,7 @@ export default function UploadPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previewFile, files]);
+  }, []); // Stable subscription - no re-subscribing
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 sm:pb-24">
@@ -758,6 +894,10 @@ export default function UploadPage() {
                       alt={fileWithStatus.fileName}
                       className="w-full h-full object-cover"
                     />
+                  ) : fileWithStatus.isLoadingPreview ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
+                    </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
                       <FileImage className="w-6 h-6 text-gray-400" />

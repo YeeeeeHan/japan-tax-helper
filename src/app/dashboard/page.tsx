@@ -135,16 +135,22 @@ export default function DashboardPage() {
     setImageExpanded(false);
   }, [selectedReceipt?.id]);
 
-  // Close fullscreen on escape
+  // Close fullscreen on escape - use ref to avoid re-subscribing
+  const isFullscreenRef = useRef(isFullscreen);
+
+  useEffect(() => {
+    isFullscreenRef.current = isFullscreen;
+  }, [isFullscreen]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
+      if (e.key === 'Escape' && isFullscreenRef.current) {
         setIsFullscreen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen]);
+  }, []); // Stable subscription
 
   // Helper to get field confidence status for styling
   const getFieldConfidenceStatus = (
@@ -327,10 +333,21 @@ export default function DashboardPage() {
     }
   }, [selectedReceipt]);
 
-  // Keyboard navigation
+  // Keyboard navigation - use refs to avoid re-subscribing on every change
+  const receiptsRef = useRef(receipts);
+  const selectedReceiptRef = useRef(selectedReceipt);
+
+  useEffect(() => {
+    receiptsRef.current = receipts;
+    selectedReceiptRef.current = selectedReceipt;
+  }, [receipts, selectedReceipt]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!receipts.length) return;
+      const currentReceipts = receiptsRef.current;
+      const currentSelected = selectedReceiptRef.current;
+
+      if (!currentReceipts.length) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -339,8 +356,8 @@ export default function DashboardPage() {
         return;
       }
 
-      const currentIndex = selectedReceipt
-        ? receipts.findIndex((r) => r.id === selectedReceipt.id)
+      const currentIndex = currentSelected
+        ? currentReceipts.findIndex((r) => r.id === currentSelected.id)
         : -1;
 
       let nextReceipt: Receipt | null = null;
@@ -348,13 +365,13 @@ export default function DashboardPage() {
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         const nextIndex =
-          currentIndex < receipts.length - 1 ? currentIndex + 1 : 0;
-        nextReceipt = receipts[nextIndex];
+          currentIndex < currentReceipts.length - 1 ? currentIndex + 1 : 0;
+        nextReceipt = currentReceipts[nextIndex];
       } else if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault();
         const prevIndex =
-          currentIndex > 0 ? currentIndex - 1 : receipts.length - 1;
-        nextReceipt = receipts[prevIndex];
+          currentIndex > 0 ? currentIndex - 1 : currentReceipts.length - 1;
+        nextReceipt = currentReceipts[prevIndex];
       } else if (e.key === 'Escape') {
         setSelectedReceipt(null);
         setIsSelectMode(false);
@@ -373,7 +390,7 @@ export default function DashboardPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [receipts, selectedReceipt]);
+  }, []); // Stable subscription - no re-subscribing
 
   const handleSave = async () => {
     if (!selectedReceipt || !editedData) return;

@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
+import heicConvert from 'heic-convert';
 import { extractWithStrategy } from '@/lib/ai/strategies';
 import { validateReceiptData, needsReview } from '@/lib/validation/receipt';
 import { extractLimiter } from '@/lib/utils/rate-limit';
 import { withRetry } from '@/lib/utils/retry';
 import type { OCRStrategy } from '@/types/ocr-strategy';
 import { OCR_STRATEGIES, DEFAULT_OCR_STRATEGY } from '@/types/ocr-strategy';
+
+/**
+ * Check if file is HEIC format
+ */
+function isHeicFile(mimeType: string, fileName: string): boolean {
+  if (mimeType === 'image/heic' || mimeType === 'image/heif') {
+    return true;
+  }
+  const name = fileName.toLowerCase();
+  return name.endsWith('.heic') || name.endsWith('.heif');
+}
+
+/**
+ * Convert HEIC buffer to JPEG using heic-convert
+ */
+async function convertHeicToJpeg(inputBuffer: Buffer): Promise<Buffer> {
+  const outputBuffer = await heicConvert({
+    buffer: inputBuffer,
+    format: 'JPEG',
+    quality: 0.85,
+  });
+  return Buffer.from(outputBuffer);
+}
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -97,14 +121,35 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Strategy] Using: ${strategy}`);
 
-    // Convert file to base64
+    // Convert file to buffer
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    let buffer: Buffer = Buffer.from(bytes);
+    let mimeType = file.type;
+    let convertedImageBase64: string | null = null;
+
+    // Convert HEIC to JPEG for processing and display
+    if (isHeicFile(file.type, file.name)) {
+      console.log('[HEIC] Converting HEIC to JPEG...');
+      try {
+        buffer = await convertHeicToJpeg(buffer) as Buffer;
+        mimeType = 'image/jpeg';
+        // Return the converted image so client can store it for display
+        convertedImageBase64 = buffer.toString('base64');
+        console.log('[HEIC] Conversion successful');
+      } catch (error: any) {
+        console.error('[HEIC] Conversion failed:', error.message);
+        return NextResponse.json(
+          { error: 'Failed to convert HEIC image. Please try converting to JPEG before uploading.' },
+          { status: 400 }
+        );
+      }
+    }
+
     const base64 = buffer.toString('base64');
 
     // Extract data using selected strategy with automatic retry on transient failures
     const extractionResult = await withRetry(
-      () => extractWithStrategy(base64, file.type, apiKey, strategy),
+      () => extractWithStrategy(base64, mimeType, apiKey, strategy),
       {
         maxRetries: 3,
         initialDelayMs: 2000,
@@ -142,6 +187,8 @@ export async function POST(request: NextRequest) {
           errors: validationResult.errors,
           warnings: allWarnings,
         },
+        // Include converted image for HEIC files so client can display them
+        ...(convertedImageBase64 && { convertedImage: convertedImageBase64 }),
       },
     };
 
