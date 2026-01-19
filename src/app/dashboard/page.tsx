@@ -9,6 +9,7 @@ import {
   updateReceipt,
 } from '@/lib/db/operations';
 import { exportToExcel } from '@/lib/export/excel';
+import { exportToCSV, exportSummaryToCSV } from '@/lib/export/csv';
 import { useI18n } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/translations';
 import { getImageUrl } from '@/lib/storage/images';
@@ -35,6 +36,8 @@ import {
   ClipboardCheck,
   Download,
   FileDown,
+  FileSpreadsheet,
+  FileText,
   Maximize2,
   Minimize2,
   RotateCcw,
@@ -72,6 +75,8 @@ export default function DashboardPage() {
   const [showExportBlockedModal, setShowExportBlockedModal] = useState(false);
   const [showExportPrompt, setShowExportPrompt] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const receiptRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -151,6 +156,19 @@ export default function DashboardPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []); // Stable subscription
+
+  // Close export menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   // Helper to get field confidence status for styling
   const getFieldConfidenceStatus = (
@@ -467,13 +485,26 @@ export default function DashboardPage() {
     await loadCounts();
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: 'excel' | 'csv' | 'csv-summary' = 'excel') => {
     if (!canExport || isExporting) return;
 
     try {
       setIsExporting(true);
+      setShowExportMenu(false);
       const allReceipts = await getReceipts();
-      await exportToExcel(allReceipts, language);
+
+      switch (format) {
+        case 'csv':
+          await exportToCSV(allReceipts, language);
+          break;
+        case 'csv-summary':
+          await exportSummaryToCSV(allReceipts, language);
+          break;
+        case 'excel':
+        default:
+          await exportToExcel(allReceipts, language);
+          break;
+      }
     } catch (error) {
       console.error('Export failed:', error);
       alert(t('export_error') || 'Export failed. Please try again.');
@@ -553,31 +584,63 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <LanguageSwitcher />
-              <button
-                onClick={() => {
-                  if (canExport) {
-                    handleExport();
-                  } else {
-                    setShowExportBlockedModal(true);
-                  }
-                }}
-                disabled={isExporting}
-                className={`px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-all ${
-                  canExport && !isExporting
-                    ? 'bg-primary-600 text-white hover:bg-primary-700 hover:scale-105 shadow-lg'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-                title={isExporting ? t('exporting') : t('export')}
-              >
-                {isExporting ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <FileDown className={`w-5 h-5 ${canExport && !isExporting ? 'animate-bounce' : ''}`} />
+              <div className="relative" ref={exportMenuRef}>
+                <button
+                  onClick={() => {
+                    if (canExport) {
+                      setShowExportMenu(!showExportMenu);
+                    } else {
+                      setShowExportBlockedModal(true);
+                    }
+                  }}
+                  disabled={isExporting}
+                  className={`px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center transition-all ${
+                    canExport && !isExporting
+                      ? 'bg-primary-600 text-white hover:bg-primary-700 hover:scale-105 shadow-lg'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={isExporting ? t('exporting') : t('export')}
+                >
+                  {isExporting ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <FileDown className={`w-5 h-5 ${canExport && !isExporting ? 'animate-bounce' : ''}`} />
+                      <ChevronDown className="w-4 h-4 ml-1 hidden sm:block" />
+                    </>
+                  )}
+                  <span className="hidden sm:inline sm:ml-1">
+                    {isExporting ? t('exporting') : t('export')}
+                  </span>
+                </button>
+
+                {/* Export Dropdown Menu */}
+                {showExportMenu && canExport && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    <button
+                      onClick={() => handleExport('excel')}
+                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                      <span>{t('export_excel')}</span>
+                    </button>
+                    <button
+                      onClick={() => handleExport('csv')}
+                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                    >
+                      <FileText className="w-4 h-4 text-blue-600" />
+                      <span>{t('export_csv')}</span>
+                    </button>
+                    <button
+                      onClick={() => handleExport('csv-summary')}
+                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
+                    >
+                      <FileText className="w-4 h-4 text-purple-600" />
+                      <span>{t('export_csv_summary')}</span>
+                    </button>
+                  </div>
                 )}
-                <span className="hidden sm:inline sm:ml-2">
-                  {isExporting ? t('exporting') : t('export')}
-                </span>
-              </button>
+              </div>
             </div>
           </div>
         </div>
@@ -744,12 +807,22 @@ export default function DashboardPage() {
               <button
                 onClick={() => {
                   setShowExportPrompt(false);
-                  handleExport();
+                  handleExport('excel');
                 }}
                 className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium flex items-center justify-center gap-2"
               >
-                <FileDown className="w-5 h-5" />
-                <span>{t('workflow_export_now')}</span>
+                <FileSpreadsheet className="w-5 h-5" />
+                <span>{t('export_excel')}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowExportPrompt(false);
+                  handleExport('csv');
+                }}
+                className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center justify-center gap-2"
+              >
+                <FileText className="w-5 h-5" />
+                <span>{t('export_csv')}</span>
               </button>
               <button
                 onClick={() => setShowExportPrompt(false)}
