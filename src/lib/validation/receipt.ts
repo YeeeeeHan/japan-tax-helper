@@ -5,7 +5,7 @@ import { EQUIPMENT_THRESHOLD, DEPRECIATION_THRESHOLDS } from '@/lib/utils/consta
  * Structured validation warning for translation support
  */
 export type ValidationWarning = {
-  type: 'tnumber_missing' | 'tax_calculation_mismatch' | 'total_amount_mismatch' | 'equipment_threshold_suggestion';
+  type: 'tnumber_missing' | 'tax_calculation_mismatch' | 'total_amount_mismatch' | 'depreciation_required';
   params?: Record<string, string | number>;
 };
 
@@ -181,25 +181,28 @@ export function needsReview(
 }
 
 /**
- * Check if receipt should be suggested as 工具器具備品 based on amount threshold
+ * Check if receipt requires depreciation consideration based on amount threshold
  * Returns true if amount >= ¥100,000 and category is 消耗品費 (or related)
  *
  * Per Japanese tax law:
  * - Items < ¥100,000: Can be expensed immediately as 消耗品費
- * - Items >= ¥100,000: Must be treated as fixed assets (工具器具備品) requiring depreciation
+ * - Items >= ¥100,000: May require depreciation treatment (固定資産)
+ *
+ * Note: The category remains 消耗品費 per NTA official categories,
+ * but a depreciation warning is shown to the user.
  */
-export function shouldSuggestEquipmentCategory(data: ExtractedData): boolean {
-  // Only suggest upgrade if amount is >= ¥100,000
+export function requiresDepreciationConsideration(data: ExtractedData): boolean {
+  // Only flag if amount is >= ¥100,000
   if (data.totalAmount < EQUIPMENT_THRESHOLD) {
     return false;
   }
 
-  // Suggest upgrade if current category is 消耗品費 (consumables)
+  // Flag if current category is 消耗品費 (consumables)
   if (data.suggestedCategory === '消耗品費') {
     return true;
   }
 
-  // Also suggest for uncategorized items with high-value equipment indicators
+  // Also flag for uncategorized items with high-value equipment indicators
   if (data.suggestedCategory === '未分類') {
     const equipmentKeywords = ['PC', 'パソコン', 'タブレット', 'iPad', 'MacBook', 'モニター', 'プリンター', 'デスク', '椅子'];
     const description = (data.description || '').toLowerCase();

@@ -99,27 +99,25 @@ export interface ConfidenceScore {
 }
 
 export type ExpenseCategory =
-  // Tier 1: Essential Categories (必須カテゴリ)
-  | '旅費交通費' // Travel & Transportation
-  | '通信費' // Communication Expenses
-  | '消耗品費' // Office Supplies (<¥100,000)
-  | '新聞図書費' // Books & Subscriptions
-  | '研修費' // Training & Education
-  | '支払手数料' // Professional & Association Fees (NEW)
-  | '交際費' // Entertainment Expenses
-  | '会議費' // Meeting Expenses
-  // Tier 2: Secondary Categories (準必須カテゴリ)
-  | '外注費' // Outsourcing Fees
-  | '広告宣伝費' // Advertising & Marketing
-  | '地代家賃' // Rent
-  | '水道光熱費' // Utilities
-  | '修繕費' // Repairs & Maintenance (NEW)
-  | '保険料' // Insurance Premiums (renamed from 損害保険料)
-  | '租税公課' // Taxes & Public Dues
-  | '雑費' // Miscellaneous Expenses (NEW)
-  // Tier 3: High-Value Items (減価償却関連)
-  | '工具器具備品' // Office Equipment (≥¥100,000) (NEW)
-  | '減価償却費' // Depreciation Expense (NEW)
+  // NTA Official Expense Categories (国税庁公式経費科目)
+  // Reference: https://www.nta.go.jp/taxes/shiraberu/shinkoku/kojin_jigyo/index.htm
+  | '租税公課' // Taxes and public charges (印紙税、登録免許税など)
+  | '水道光熱費' // Utilities (電気、ガス、水道)
+  | '旅費交通費' // Travel & transportation (タクシー、電車、出張費など)
+  | '通信費' // Communication (携帯、電話、インターネットなど)
+  | '修繕費' // Repairs (機器修理、メンテナンスなど)
+  | '消耗品費' // Consumables (文具、事務用品、10万円未満の備品)
+  | '雑費' // Miscellaneous expenses
+  | '給料賃金' // Salaries & wages (従業員給与)
+  | '外注工賃' // Outsourcing costs (業務委託費)
+  | '減価償却費' // Depreciation (固定資産の償却)
+  | '貸倒金' // Bad debts (回収不能債権)
+  | '地代家賃' // Rent (事務所賃料など)
+  | '利子割引料' // Interest & discounts (借入金利息など)
+  | '交際費' // Entertainment (飲食、ギフトなど)
+  | '接待交際費' // Entertainment expenses (接待費用)
+  | '広告宣伝費' // Advertising (広告、マーケティング)
+  | '福利厚生費' // Employee welfare (従業員福利厚生)
   | '未分類'; // Uncategorized
 
 export type PaymentMethod =
