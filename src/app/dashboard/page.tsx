@@ -21,7 +21,7 @@ import {
   parseTNumber,
 } from '@/lib/utils/format';
 import {
-  shouldSuggestEquipmentCategory,
+  requiresDepreciationConsideration,
   validateReceiptData,
   type ValidationWarning,
 } from '@/lib/validation/receipt';
@@ -1518,36 +1518,22 @@ export default function DashboardPage() {
                       )}
                     </label>
 
-                    {/* Equipment threshold warning */}
-                    {shouldSuggestEquipmentCategory(editedData) && (
+                    {/* Depreciation threshold warning */}
+                    {requiresDepreciationConsideration(editedData) && (
                       <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 mb-2">
                         <div className="flex items-start gap-2">
                           <AlertCircle className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
                           <div className="flex-1">
                             <span className="text-sm font-medium text-purple-900">
                               {t(
-                                'warning_equipment_threshold_title' as TranslationKey
+                                'warning_depreciation_threshold_title' as TranslationKey
                               )}
                             </span>
                             <p className="text-xs text-purple-700 mt-0.5">
                               {t(
-                                'warning_equipment_threshold' as TranslationKey
+                                'warning_depreciation_required' as TranslationKey
                               )}
                             </p>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEditedData({
-                                  ...editedData,
-                                  suggestedCategory: '工具器具備品',
-                                })
-                              }
-                              className="mt-2 text-xs px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors"
-                            >
-                              {t(
-                                'warning_equipment_change_category' as TranslationKey
-                              )}
-                            </button>
                           </div>
                         </div>
                       </div>

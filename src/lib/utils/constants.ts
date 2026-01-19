@@ -1,29 +1,28 @@
 import { ExpenseCategory } from '@/types/receipt';
 
-// Standard expense categories for Japanese tax filing
-// Organized in 3 tiers based on frequency of use
+// NTA Official Expense Categories (国税庁公式経費科目)
+// Reference: https://www.nta.go.jp/taxes/shiraberu/shinkoku/kojin_jigyo/index.htm
+// Ordered by frequency of use for individual business owners (個人事業主)
 export const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; description: string }[] = [
-  // Tier 1: Essential Categories (必須カテゴリ) - covers ~90% of receipts
-  { value: '旅費交通費', label: '旅費交通費', description: 'Travel & Transportation' },
-  { value: '通信費', label: '通信費', description: 'Communication Expenses' },
-  { value: '消耗品費', label: '消耗品費', description: 'Office Supplies' },
-  { value: '新聞図書費', label: '新聞図書費', description: 'Books & Subscriptions' },
-  { value: '研修費', label: '研修費', description: 'Training & Education' },
-  { value: '支払手数料', label: '支払手数料', description: 'Professional & Association Fees' },
-  { value: '交際費', label: '交際費', description: 'Entertainment Expenses' },
-  { value: '会議費', label: '会議費', description: 'Meeting Expenses' },
-  // Tier 2: Secondary Categories (準必須カテゴリ)
-  { value: '外注費', label: '外注費', description: 'Outsourcing Fees' },
-  { value: '広告宣伝費', label: '広告宣伝費', description: 'Advertising & Marketing' },
+  // High-frequency categories for professionals
+  { value: '旅費交通費', label: '旅費交通費', description: 'Travel & transportation' },
+  { value: '通信費', label: '通信費', description: 'Communication' },
+  { value: '消耗品費', label: '消耗品費', description: 'Consumables' },
+  { value: '交際費', label: '交際費', description: 'Entertainment' },
+  { value: '接待交際費', label: '接待交際費', description: 'Entertainment expenses' },
   { value: '地代家賃', label: '地代家賃', description: 'Rent' },
+  { value: '広告宣伝費', label: '広告宣伝費', description: 'Advertising' },
+  { value: '外注工賃', label: '外注工賃', description: 'Outsourcing costs' },
+  // Standard NTA categories
+  { value: '租税公課', label: '租税公課', description: 'Taxes and public charges' },
   { value: '水道光熱費', label: '水道光熱費', description: 'Utilities' },
-  { value: '修繕費', label: '修繕費', description: 'Repairs & Maintenance' },
-  { value: '保険料', label: '保険料', description: 'Insurance Premiums' },
-  { value: '租税公課', label: '租税公課', description: 'Taxes & Public Dues' },
-  { value: '雑費', label: '雑費', description: 'Miscellaneous Expenses' },
-  // Tier 3: High-Value Items (減価償却関連) - items ≥¥100,000
-  { value: '工具器具備品', label: '工具器具備品', description: 'Office Equipment' },
-  { value: '減価償却費', label: '減価償却費', description: 'Depreciation Expense' },
+  { value: '修繕費', label: '修繕費', description: 'Repairs' },
+  { value: '給料賃金', label: '給料賃金', description: 'Salaries & wages' },
+  { value: '減価償却費', label: '減価償却費', description: 'Depreciation' },
+  { value: '貸倒金', label: '貸倒金', description: 'Bad debts' },
+  { value: '利子割引料', label: '利子割引料', description: 'Interest & discounts' },
+  { value: '福利厚生費', label: '福利厚生費', description: 'Employee welfare' },
+  { value: '雑費', label: '雑費', description: 'Miscellaneous' },
   // Default
   { value: '未分類', label: '未分類', description: 'Uncategorized' },
 ];
@@ -43,8 +42,8 @@ export const CONFIDENCE_THRESHOLDS = {
   CRITICAL_FIELD: 0.8,   // Flag if critical fields (T-number, amount) are below this
 } as const;
 
-// Equipment expense threshold (for 工具器具備品 classification)
-// Items ≥¥100,000 must be treated as fixed assets requiring depreciation
+// High-value asset threshold (for depreciation consideration)
+// Items ≥¥100,000 may require depreciation treatment as fixed assets (固定資産)
 export const EQUIPMENT_THRESHOLD = 100000; // ¥100,000
 
 // Depreciation thresholds for 少額減価償却資産の特例
