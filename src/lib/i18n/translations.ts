@@ -183,6 +183,9 @@ export const translations = {
     // Export
     exporting: 'エクスポート中...',
     export_error: 'エクスポートに失敗しました。もう一度お試しください。',
+    export_excel: 'Excel形式',
+    export_csv: 'CSV形式 (e-Tax対応)',
+    export_csv_summary: 'CSV集計 (e-Tax対応)',
 
     // Expense Categories (勘定科目)
     category_旅費交通費: '旅費交通費',
@@ -401,6 +404,9 @@ export const translations = {
     // Export
     exporting: 'Exporting...',
     export_error: 'Export failed. Please try again.',
+    export_excel: 'Excel Format',
+    export_csv: 'CSV Format (e-Tax)',
+    export_csv_summary: 'CSV Summary (e-Tax)',
 
     // Expense Categories (勘定科目) - Japanese + English format for English mode
     category_旅費交通費: '旅費交通費 (Travel & Transportation)',
