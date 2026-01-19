@@ -10,6 +10,8 @@ import {
 } from '@/lib/db/operations';
 import { exportToExcel } from '@/lib/export/excel';
 import { exportToCSV, exportSummaryToCSV } from '@/lib/export/csv';
+import { exportToLedgerExcel } from '@/lib/export/ledger';
+import { downloadForm309CSV } from '@/lib/export/form309';
 import { useI18n } from '@/lib/i18n/context';
 import type { TranslationKey } from '@/lib/i18n/translations';
 import { getImageUrl } from '@/lib/storage/images';
@@ -38,6 +40,7 @@ import {
   FileDown,
   FileSpreadsheet,
   FileText,
+  HelpCircle,
   Maximize2,
   Minimize2,
   RotateCcw,
@@ -76,6 +79,13 @@ export default function DashboardPage() {
   const [showExportPrompt, setShowExportPrompt] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showForm309Modal, setShowForm309Modal] = useState(false);
+  const [submitterInfo, setSubmitterInfo] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    referenceNumber: '',
+  });
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const receiptRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -296,6 +306,18 @@ export default function DashboardPage() {
   const workflowStep = getWorkflowStep();
   const canExport = counts.total > 0 && counts.needsReview === 0;
 
+  // Load submitter info from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('form309_submitter');
+    if (stored) {
+      try {
+        setSubmitterInfo(JSON.parse(stored));
+      } catch (e) {
+        console.error('Failed to load submitter info:', e);
+      }
+    }
+  }, []);
+
   // Load receipts
   useEffect(() => {
     let mounted = true;
@@ -485,8 +507,15 @@ export default function DashboardPage() {
     await loadCounts();
   };
 
-  const handleExport = async (format: 'excel' | 'csv' | 'csv-summary' = 'excel') => {
+  const handleExport = async (format: 'excel' | 'csv' | 'csv-summary' | 'ledger' | 'form309' = 'excel') => {
     if (!canExport || isExporting) return;
+
+    // Form 309 requires submitter info - show modal
+    if (format === 'form309') {
+      setShowForm309Modal(true);
+      setShowExportMenu(false);
+      return;
+    }
 
     try {
       setIsExporting(true);
@@ -500,6 +529,9 @@ export default function DashboardPage() {
         case 'csv-summary':
           await exportSummaryToCSV(allReceipts, language);
           break;
+        case 'ledger':
+          await exportToLedgerExcel(allReceipts, language);
+          break;
         case 'excel':
         default:
           await exportToExcel(allReceipts, language);
@@ -507,6 +539,46 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Export failed:', error);
+      alert(t('export_error') || 'Export failed. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleForm309Export = async () => {
+    if (!submitterInfo.name || !submitterInfo.address) {
+      alert(language === 'ja'
+        ? '提出者名と住所は必須項目です'
+        : 'Submitter name and address are required');
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+      setShowForm309Modal(false);
+
+      // Save submitter info to localStorage for next time
+      localStorage.setItem('form309_submitter', JSON.stringify(submitterInfo));
+
+      const allReceipts = await getReceipts();
+      const currentYear = new Date().getFullYear();
+      const reiwaYear = currentYear - 2018; // 2019 = Reiwa 1
+      const taxYear = reiwaYear.toString().padStart(2, '0');
+
+      await downloadForm309CSV(
+        allReceipts,
+        {
+          documentType: '309',
+          referenceNumber1: submitterInfo.referenceNumber,
+          submitterAddress: submitterInfo.address,
+          submitterName: submitterInfo.name,
+          submitterPhone: submitterInfo.phone,
+          taxYear,
+        },
+        taxYear
+      );
+    } catch (error) {
+      console.error('Form 309 export failed:', error);
       alert(t('export_error') || 'Export failed. Please try again.');
     } finally {
       setIsExporting(false);
@@ -616,27 +688,97 @@ export default function DashboardPage() {
 
                 {/* Export Dropdown Menu */}
                 {showExportMenu && canExport && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    <div className="px-3 py-2 border-b border-gray-200">
+                      <span className="text-xs font-semibold text-gray-500 uppercase">
+                        {language === 'ja' ? '標準形式' : 'Standard Formats'}
+                      </span>
+                    </div>
                     <button
                       onClick={() => handleExport('excel')}
                       className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
                     >
                       <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                      <span>{t('export_excel')}</span>
+                      <span className="flex-1">{t('export_excel')}</span>
+                      <div className="relative group">
+                        <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                          <div className="mb-2">{t('export_excel_tooltip')}</div>
+                          <div className="pt-2 border-t border-gray-700 text-gray-300">{t('export_excel_tooltip_casual')}</div>
+                        </div>
+                      </div>
                     </button>
                     <button
                       onClick={() => handleExport('csv')}
                       className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
                     >
                       <FileText className="w-4 h-4 text-blue-600" />
-                      <span>{t('export_csv')}</span>
+                      <span className="flex-1">{t('export_csv')}</span>
+                      <div className="relative group">
+                        <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                          <div className="mb-2">{t('export_csv_tooltip')}</div>
+                          <div className="pt-2 border-t border-gray-700 text-gray-300">{t('export_csv_tooltip_casual')}</div>
+                        </div>
+                      </div>
                     </button>
                     <button
                       onClick={() => handleExport('csv-summary')}
                       className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-3"
                     >
                       <FileText className="w-4 h-4 text-purple-600" />
-                      <span>{t('export_csv_summary')}</span>
+                      <span className="flex-1">{t('export_csv_summary')}</span>
+                      <div className="relative group">
+                        <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                        <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                          <div className="mb-2">{t('export_csv_summary_tooltip')}</div>
+                          <div className="pt-2 border-t border-gray-700 text-gray-300">{t('export_csv_summary_tooltip_casual')}</div>
+                        </div>
+                      </div>
+                    </button>
+
+                    <div className="px-3 py-2 border-t border-b border-gray-200 mt-1">
+                      <span className="text-xs font-semibold text-gray-500 uppercase">
+                        {language === 'ja' ? 'NTA公式形式' : 'NTA Official Formats'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleExport('ledger')}
+                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileSpreadsheet className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">{t('export_ledger')}</div>
+                          <div className="text-xs text-gray-500">{t('export_ledger_description')}</div>
+                        </div>
+                        <div className="relative group flex-shrink-0">
+                          <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                          <div className="absolute right-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                            <div className="mb-2">{t('export_ledger_tooltip')}</div>
+                            <div className="pt-2 border-t border-gray-700 text-gray-300">{t('export_ledger_tooltip_casual')}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleExport('form309')}
+                      className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-4 h-4 text-orange-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">{t('export_form309')}</div>
+                          <div className="text-xs text-gray-500">{t('export_form309_description')}</div>
+                        </div>
+                        <div className="relative group flex-shrink-0">
+                          <HelpCircle className="w-4 h-4 text-gray-400 hover:text-gray-600 cursor-help" />
+                          <div className="absolute right-0 bottom-full mb-2 w-80 p-3 bg-gray-900 text-white text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-50">
+                            <div className="mb-2">{t('export_form309_tooltip')}</div>
+                            <div className="pt-2 border-t border-gray-700 text-gray-300">{t('export_form309_tooltip_casual')}</div>
+                          </div>
+                        </div>
+                      </div>
                     </button>
                   </div>
                 )}
@@ -829,6 +971,105 @@ export default function DashboardPage() {
                 className="w-full px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
               >
                 {t('workflow_review_more')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Form 309 Submitter Info Modal */}
+      {showForm309Modal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">
+                {t('submitter_settings')}
+              </h3>
+              <button
+                onClick={() => setShowForm309Modal(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-amber-800">
+                  {t('form309_warning')}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('submitter_name')} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={submitterInfo.name}
+                  onChange={(e) => setSubmitterInfo({ ...submitterInfo, name: e.target.value })}
+                  placeholder={language === 'ja' ? '株式会社サンプル' : 'Sample Company Inc.'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('submitter_address')} <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={submitterInfo.address}
+                  onChange={(e) => setSubmitterInfo({ ...submitterInfo, address: e.target.value })}
+                  placeholder={language === 'ja' ? '東京都千代田区...' : 'Tokyo, Chiyoda-ku...'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('submitter_phone')}
+                </label>
+                <input
+                  type="text"
+                  value={submitterInfo.phone}
+                  onChange={(e) => setSubmitterInfo({ ...submitterInfo, phone: e.target.value })}
+                  placeholder="03-1234-5678"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t('submitter_reference_number')}
+                </label>
+                <input
+                  type="text"
+                  value={submitterInfo.referenceNumber}
+                  onChange={(e) => setSubmitterInfo({ ...submitterInfo, referenceNumber: e.target.value })}
+                  placeholder="0123456789"
+                  maxLength={10}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowForm309Modal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleForm309Export}
+                disabled={!submitterInfo.name || !submitterInfo.address}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {t('export')}
               </button>
             </div>
           </div>

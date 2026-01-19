@@ -17,6 +17,7 @@ const EXPORT_HEADERS = {
     sheet_flagged: '要確認',
     sheet_images: '領収書画像',
     sheet_depreciation: '減価償却対象',
+    sheet_invoice_validation: '適格請求書確認',
     // Main sheet
     date: '日付',
     issuer: '発行者',
@@ -25,6 +26,12 @@ const EXPORT_HEADERS = {
     subtotal: '税抜金額',
     tax8: '消費税(8%)',
     tax10: '消費税(10%)',
+    tax_8_subtotal: '8%対象額',
+    tax_8_amount: '8%消費税額',
+    tax_8_total: '8%税込額',
+    tax_10_subtotal: '10%対象額',
+    tax_10_amount: '10%消費税額',
+    tax_10_total: '10%税込額',
     total: '合計金額',
     category: '分類',
     payment: '支払方法',
@@ -32,6 +39,11 @@ const EXPORT_HEADERS = {
     // Summary sheet
     count: '件数',
     grand_total: '合計',
+    qualified_invoice_section: '適格請求書区分',
+    qualified_invoice: '適格請求書（T番号あり）',
+    non_qualified: '区分記載請求書等',
+    with_tnumber: 'T番号あり',
+    without_tnumber: 'T番号なし',
     // Flagged sheet
     confidence: '信頼度',
     issues: '問題点',
@@ -47,6 +59,15 @@ const EXPORT_HEADERS = {
     depreciation_lumpsum: '一括償却資産（3年均等）',
     depreciation_standard: '通常減価償却（耐用年数）',
     depreciation_register_required: '要：固定資産台帳への登録',
+    // Invoice validation sheet
+    tnumber_status: 'T番号状態',
+    tnumber_valid: '有効',
+    tnumber_invalid: '無効',
+    tnumber_missing: '未登録',
+    tax_breakdown_status: '税率区分状況',
+    action_required: '対応要否',
+    status_ok: '正常',
+    status_action_needed: '要確認',
     // Issue messages
     issue_no_tnumber: 'T番号なし',
     issue_low_confidence: '信頼度低い',
@@ -60,6 +81,7 @@ const EXPORT_HEADERS = {
     sheet_flagged: 'Flagged',
     sheet_images: 'Images',
     sheet_depreciation: 'Depreciation Assets',
+    sheet_invoice_validation: 'Invoice Validation',
     // Main sheet
     date: 'Date',
     issuer: 'Issuer',
@@ -68,6 +90,12 @@ const EXPORT_HEADERS = {
     subtotal: 'Subtotal (excl. tax)',
     tax8: 'Tax (8%)',
     tax10: 'Tax (10%)',
+    tax_8_subtotal: '8% Subtotal',
+    tax_8_amount: '8% Tax',
+    tax_8_total: '8% Total',
+    tax_10_subtotal: '10% Subtotal',
+    tax_10_amount: '10% Tax',
+    tax_10_total: '10% Total',
     total: 'Total',
     category: 'Category',
     payment: 'Payment',
@@ -75,6 +103,11 @@ const EXPORT_HEADERS = {
     // Summary sheet
     count: 'Count',
     grand_total: 'Total',
+    qualified_invoice_section: 'Invoice System Classification',
+    qualified_invoice: 'Qualified Invoice (w/ T-Number)',
+    non_qualified: 'Non-Qualified Invoice',
+    with_tnumber: 'With T-Number',
+    without_tnumber: 'Without T-Number',
     // Flagged sheet
     confidence: 'Confidence',
     issues: 'Issues',
@@ -90,6 +123,15 @@ const EXPORT_HEADERS = {
     depreciation_lumpsum: 'Lump-sum depreciation (3 years)',
     depreciation_standard: 'Standard depreciation (useful life)',
     depreciation_register_required: 'Required: Fixed asset ledger',
+    // Invoice validation sheet
+    tnumber_status: 'T-Number Status',
+    tnumber_valid: 'Valid',
+    tnumber_invalid: 'Invalid',
+    tnumber_missing: 'Not Registered',
+    tax_breakdown_status: 'Tax Rate Status',
+    action_required: 'Action Required',
+    status_ok: 'OK',
+    status_action_needed: 'Needs Review',
     // Issue messages
     issue_no_tnumber: 'No T-Number',
     issue_low_confidence: 'Low confidence',
@@ -120,13 +162,16 @@ export async function exportToExcel(receipts: Receipt[], lang: Language = 'ja'):
   // Sheet 2: Summary by category (集計)
   await createSummarySheet(workbook, receipts, h);
 
-  // Sheet 3: Flagged receipts (要確認)
+  // Sheet 3: Invoice validation (適格請求書確認)
+  await createInvoiceValidationSheet(workbook, receipts, h);
+
+  // Sheet 4: Flagged receipts (要確認)
   await createFlaggedSheet(workbook, receipts, h);
 
-  // Sheet 4: Images (領収書画像)
+  // Sheet 5: Images (領収書画像)
   await createImagesSheet(workbook, receipts, h);
 
-  // Sheet 5: Depreciation-eligible assets (減価償却対象)
+  // Sheet 6: Depreciation-eligible assets (減価償却対象)
   await createDepreciationSheet(workbook, receipts, h);
 
   // Generate and download
@@ -140,22 +185,23 @@ export async function exportToExcel(receipts: Receipt[], lang: Language = 'ja'):
 }
 
 /**
- * Create main receipts sheet
+ * Create main receipts sheet with enhanced Invoice System fields
+ * T-Number is now column 2 (after Date) for prominence
  */
 async function createMainSheet(workbook: ExcelJS.Workbook, receipts: Receipt[], h: ExportHeaders) {
   const sheet = workbook.addWorksheet(h.sheet_main);
 
-  // Set column widths
+  // Set column widths - T-Number moved to column 2
   sheet.columns = [
     { header: h.date, key: 'date', width: 12 },
-    { header: h.issuer, key: 'issuer', width: 25 },
     { header: h.tnumber, key: 'tnumber', width: 16 },
+    { header: h.issuer, key: 'issuer', width: 25 },
     { header: h.description, key: 'description', width: 30 },
+    { header: h.category, key: 'category', width: 15 },
     { header: h.subtotal, key: 'subtotal', width: 15 },
     { header: h.tax8, key: 'tax8', width: 12 },
     { header: h.tax10, key: 'tax10', width: 12 },
     { header: h.total, key: 'total', width: 12 },
-    { header: h.category, key: 'category', width: 15 },
     { header: h.payment, key: 'payment', width: 12 },
     { header: h.notes, key: 'notes', width: 30 },
   ];
@@ -170,24 +216,48 @@ async function createMainSheet(workbook: ExcelJS.Workbook, receipts: Receipt[], 
   };
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
 
-  // Add data rows
-  receipts.forEach((receipt) => {
+  // Add data rows with T-Number validation
+  receipts.forEach((receipt, index) => {
     const tax8 = receipt.extractedData.taxBreakdown.find(tb => tb.taxRate === 8);
     const tax10 = receipt.extractedData.taxBreakdown.find(tb => tb.taxRate === 10);
+    const rowNum = index + 2; // +2 because row 1 is header
 
-    sheet.addRow({
+    const row = sheet.addRow({
       date: formatDate(receipt.extractedData.transactionDate),
-      issuer: receipt.extractedData.issuerName,
       tnumber: receipt.extractedData.tNumber || '-',
+      issuer: receipt.extractedData.issuerName,
       description: receipt.extractedData.description,
+      category: receipt.extractedData.suggestedCategory,
       subtotal: receipt.extractedData.subtotalExcludingTax,
       tax8: tax8?.taxAmount || 0,
       tax10: tax10?.taxAmount || 0,
       total: receipt.extractedData.totalAmount,
-      category: receipt.extractedData.suggestedCategory,
       payment: receipt.extractedData.paymentMethod || '-',
       notes: receipt.notes || '',
     });
+
+    // Apply conditional formatting to T-Number cell (column 2)
+    const tNumberCell = sheet.getCell(rowNum, 2);
+    const tNumber = receipt.extractedData.tNumber;
+    const isValidTNumber = tNumber && /^T\d{13}$/.test(tNumber);
+
+    if (isValidTNumber) {
+      // Valid T-Number: Green fill
+      tNumberCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF10B981' }, // Green
+      };
+      tNumberCell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+    } else {
+      // Missing or invalid T-Number: Red fill
+      tNumberCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEF4444' }, // Red
+      };
+      tNumberCell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+    }
   });
 
   // Format currency columns
@@ -215,10 +285,73 @@ async function createMainSheet(workbook: ExcelJS.Workbook, receipts: Receipt[], 
 
 /**
  * Create summary sheet grouped by category
+ * Enhanced with Invoice System (適格請求書) classification section
  * Includes tax breakdown by rate (8% and 10%) for Japanese tax filing
  */
 async function createSummarySheet(workbook: ExcelJS.Workbook, receipts: Receipt[], h: ExportHeaders) {
   const sheet = workbook.addWorksheet(h.sheet_summary);
+
+  // Calculate Invoice System statistics
+  const withTNumber = receipts.filter(r => r.extractedData.tNumber && /^T\d{13}$/.test(r.extractedData.tNumber));
+  const withoutTNumber = receipts.filter(r => !r.extractedData.tNumber || !/^T\d{13}$/.test(r.extractedData.tNumber));
+
+  const qualifiedTotal = withTNumber.reduce((sum, r) => sum + r.extractedData.totalAmount, 0);
+  const nonQualifiedTotal = withoutTNumber.reduce((sum, r) => sum + r.extractedData.totalAmount, 0);
+
+  // Add Invoice System classification section at the top
+  sheet.mergeCells('A1:F1');
+  const titleCell = sheet.getCell('A1');
+  titleCell.value = h.qualified_invoice_section;
+  titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF6366F1' }, // Indigo
+  };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+  sheet.getRow(1).height = 25;
+
+  // Headers for Invoice System section
+  sheet.getCell('A2').value = '';
+  sheet.getCell('B2').value = h.count;
+  sheet.getCell('C2').value = h.total;
+  const headerRow2 = sheet.getRow(2);
+  headerRow2.font = { bold: true };
+  headerRow2.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE0E7FF' }, // Light indigo
+  };
+
+  // Qualified invoices row
+  sheet.getCell('A3').value = h.qualified_invoice;
+  sheet.getCell('B3').value = withTNumber.length;
+  sheet.getCell('C3').value = qualifiedTotal;
+  sheet.getCell('C3').numFmt = '¥#,##0';
+
+  // Non-qualified invoices row
+  sheet.getCell('A4').value = h.non_qualified;
+  sheet.getCell('B4').value = withoutTNumber.length;
+  sheet.getCell('C4').value = nonQualifiedTotal;
+  sheet.getCell('C4').numFmt = '¥#,##0';
+
+  // Add borders to Invoice System section
+  for (let row = 1; row <= 4; row++) {
+    for (let col = 1; col <= 3; col++) {
+      sheet.getCell(row, col).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    }
+  }
+
+  // Add spacing row
+  sheet.getRow(5).height = 10;
+
+  // Category breakdown section starts at row 6
+  const startRow = 6;
 
   sheet.columns = [
     { header: h.category, key: 'category', width: 20 },
@@ -229,8 +362,8 @@ async function createSummarySheet(workbook: ExcelJS.Workbook, receipts: Receipt[
     { header: h.total, key: 'total', width: 15 },
   ];
 
-  // Style header
-  const headerRow = sheet.getRow(1);
+  // Style header for category section (row 6)
+  const headerRow = sheet.getRow(startRow);
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   headerRow.fill = {
     type: 'pattern',
@@ -238,6 +371,14 @@ async function createSummarySheet(workbook: ExcelJS.Workbook, receipts: Receipt[
     fgColor: { argb: 'FF4F46E5' },
   };
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  // Manually set headers at row 6
+  sheet.getCell(startRow, 1).value = h.category;
+  sheet.getCell(startRow, 2).value = h.count;
+  sheet.getCell(startRow, 3).value = h.subtotal;
+  sheet.getCell(startRow, 4).value = h.tax8;
+  sheet.getCell(startRow, 5).value = h.tax10;
+  sheet.getCell(startRow, 6).value = h.total;
 
   // Group by category with tax breakdown
   const categoryTotals: Record<string, {
@@ -268,16 +409,16 @@ async function createSummarySheet(workbook: ExcelJS.Workbook, receipts: Receipt[
     });
   });
 
-  // Add rows
+  // Add category rows starting from row 7
+  let currentRow = startRow + 1;
   Object.entries(categoryTotals).forEach(([category, data]) => {
-    sheet.addRow({
-      category,
-      count: data.count,
-      subtotal: data.subtotal,
-      tax8: data.tax8,
-      tax10: data.tax10,
-      total: data.total,
-    });
+    sheet.getCell(currentRow, 1).value = category;
+    sheet.getCell(currentRow, 2).value = data.count;
+    sheet.getCell(currentRow, 3).value = data.subtotal;
+    sheet.getCell(currentRow, 4).value = data.tax8;
+    sheet.getCell(currentRow, 5).value = data.tax10;
+    sheet.getCell(currentRow, 6).value = data.total;
+    currentRow++;
   });
 
   // Calculate grand totals
@@ -295,14 +436,14 @@ async function createSummarySheet(workbook: ExcelJS.Workbook, receipts: Receipt[
   );
 
   // Add total row
-  const totalRow = sheet.addRow({
-    category: h.grand_total,
-    count: receipts.length,
-    subtotal: grandTotals.subtotal,
-    tax8: grandTotals.tax8,
-    tax10: grandTotals.tax10,
-    total: grandTotals.total,
-  });
+  sheet.getCell(currentRow, 1).value = h.grand_total;
+  sheet.getCell(currentRow, 2).value = receipts.length;
+  sheet.getCell(currentRow, 3).value = grandTotals.subtotal;
+  sheet.getCell(currentRow, 4).value = grandTotals.tax8;
+  sheet.getCell(currentRow, 5).value = grandTotals.tax10;
+  sheet.getCell(currentRow, 6).value = grandTotals.total;
+
+  const totalRow = sheet.getRow(currentRow);
   totalRow.font = { bold: true };
   totalRow.fill = {
     type: 'pattern',
@@ -310,11 +451,113 @@ async function createSummarySheet(workbook: ExcelJS.Workbook, receipts: Receipt[
     fgColor: { argb: 'FFF3F4F6' },
   };
 
-  // Format currency columns
-  ['subtotal', 'tax8', 'tax10', 'total'].forEach(key => {
-    const col = sheet.getColumn(key);
-    col.numFmt = '¥#,##0';
-    col.alignment = { horizontal: 'right' };
+  // Format currency columns (columns 3-6)
+  for (let col = 3; col <= 6; col++) {
+    sheet.getColumn(col).numFmt = '¥#,##0';
+    sheet.getColumn(col).alignment = { horizontal: 'right' };
+  }
+
+  // Add borders to category section
+  for (let row = startRow; row <= currentRow; row++) {
+    for (let col = 1; col <= 6; col++) {
+      sheet.getCell(row, col).border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    }
+  }
+
+  // Freeze header row (row 6)
+  sheet.views = [{ state: 'frozen', ySplit: startRow }];
+}
+
+/**
+ * Create Invoice Validation sheet
+ * Shows T-Number validation status and tax breakdown compliance
+ */
+async function createInvoiceValidationSheet(workbook: ExcelJS.Workbook, receipts: Receipt[], h: ExportHeaders) {
+  const sheet = workbook.addWorksheet(h.sheet_invoice_validation);
+
+  sheet.columns = [
+    { header: h.date, key: 'date', width: 12 },
+    { header: h.issuer, key: 'issuer', width: 25 },
+    { header: h.tnumber, key: 'tnumber', width: 16 },
+    { header: h.tnumber_status, key: 'status', width: 12 },
+    { header: h.tax_breakdown_status, key: 'taxStatus', width: 15 },
+    { header: h.action_required, key: 'action', width: 15 },
+  ];
+
+  // Style header
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF6366F1' }, // Indigo
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  // Add data rows
+  receipts.forEach(receipt => {
+    const tNumber = receipt.extractedData.tNumber;
+    const isValidTNumber = tNumber && /^T\d{13}$/.test(tNumber);
+
+    // Determine T-Number status
+    let tNumberStatus: string;
+    let actionRequired: string;
+    if (!tNumber || tNumber === '-') {
+      tNumberStatus = h.tnumber_missing;
+      actionRequired = h.status_action_needed;
+    } else if (isValidTNumber) {
+      tNumberStatus = h.tnumber_valid;
+      actionRequired = h.status_ok;
+    } else {
+      tNumberStatus = h.tnumber_invalid;
+      actionRequired = h.status_action_needed;
+    }
+
+    // Check tax breakdown status
+    const hasTax8 = receipt.extractedData.taxBreakdown.some(tb => tb.taxRate === 8);
+    const hasTax10 = receipt.extractedData.taxBreakdown.some(tb => tb.taxRate === 10);
+    let taxStatus = '';
+    if (hasTax8 && hasTax10) {
+      taxStatus = '8% + 10%';
+    } else if (hasTax8) {
+      taxStatus = '8%';
+    } else if (hasTax10) {
+      taxStatus = '10%';
+    } else {
+      taxStatus = '-';
+    }
+
+    const row = sheet.addRow({
+      date: formatDate(receipt.extractedData.transactionDate),
+      issuer: receipt.extractedData.issuerName,
+      tnumber: tNumber || '-',
+      status: tNumberStatus,
+      taxStatus: taxStatus,
+      action: actionRequired,
+    });
+
+    // Color-code action column
+    const actionCell = row.getCell(6);
+    if (actionRequired === h.status_action_needed) {
+      actionCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFEF3C7' }, // Yellow
+      };
+      actionCell.font = { color: { argb: 'FF92400E' }, bold: true };
+    } else {
+      actionCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD1FAE5' }, // Green
+      };
+      actionCell.font = { color: { argb: 'FF065F46' } };
+    }
   });
 
   // Add borders

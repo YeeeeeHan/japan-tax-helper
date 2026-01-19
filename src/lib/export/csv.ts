@@ -7,31 +7,38 @@ import type { Language } from '../i18n/translations';
 /**
  * CSV column headers for e-Tax compatible bookkeeping export
  * Based on NTA 帳簿の様式例（事業所得者用）
+ * Enhanced with detailed tax breakdown for Invoice System (適格請求書) compliance
  */
 const CSV_HEADERS = {
   ja: {
     date: '日付',
+    tNumber: '登録番号',
     issuer: '取引先',
     description: '摘要',
     category: '勘定科目',
-    subtotal: '税抜金額',
-    tax8: '消費税(8%)',
-    tax10: '消費税(10%)',
+    tax8Subtotal: '8%対象額',
+    tax8Amount: '8%消費税額',
+    tax8Total: '8%税込額',
+    tax10Subtotal: '10%対象額',
+    tax10Amount: '10%消費税額',
+    tax10Total: '10%税込額',
     total: '合計金額',
-    tNumber: '登録番号',
     paymentMethod: '支払方法',
     notes: '備考',
   },
   en: {
     date: 'Date',
+    tNumber: 'T-Number',
     issuer: 'Vendor',
     description: 'Description',
     category: 'Category',
-    subtotal: 'Subtotal (excl. tax)',
-    tax8: 'Tax (8%)',
-    tax10: 'Tax (10%)',
-    total: 'Total',
-    tNumber: 'T-Number',
+    tax8Subtotal: '8% Subtotal',
+    tax8Amount: '8% Tax Amount',
+    tax8Total: '8% Total w/Tax',
+    tax10Subtotal: '10% Subtotal',
+    tax10Amount: '10% Tax Amount',
+    tax10Total: '10% Total w/Tax',
+    total: 'Total Amount',
     paymentMethod: 'Payment Method',
     notes: 'Notes',
   },
@@ -59,7 +66,7 @@ function escapeCSVField(value: string | number | null | undefined): string {
 }
 
 /**
- * Convert receipt data to CSV row
+ * Convert receipt data to CSV row with enhanced tax breakdown
  */
 function receiptToCSVRow(receipt: Receipt): string[] {
   const data = receipt.extractedData;
@@ -70,14 +77,17 @@ function receiptToCSVRow(receipt: Receipt): string[] {
 
   return [
     formatDate(data.transactionDate),
+    data.tNumber || '',
     data.issuerName,
     data.description,
     data.suggestedCategory,
-    String(data.subtotalExcludingTax),
+    String(tax8?.subtotal || 0),
     String(tax8?.taxAmount || 0),
+    String(tax8?.total || 0),
+    String(tax10?.subtotal || 0),
     String(tax10?.taxAmount || 0),
+    String(tax10?.total || 0),
     String(data.totalAmount),
-    data.tNumber || '',
     data.paymentMethod || '',
     receipt.notes || '',
   ];
@@ -92,17 +102,20 @@ function receiptToCSVRow(receipt: Receipt): string[] {
 function generateCSVContent(receipts: Receipt[], lang: Language): string {
   const h = CSV_HEADERS[lang];
 
-  // Build header row
+  // Build header row with enhanced tax breakdown columns
   const headerRow = [
     h.date,
+    h.tNumber,
     h.issuer,
     h.description,
     h.category,
-    h.subtotal,
-    h.tax8,
-    h.tax10,
+    h.tax8Subtotal,
+    h.tax8Amount,
+    h.tax8Total,
+    h.tax10Subtotal,
+    h.tax10Amount,
+    h.tax10Total,
     h.total,
-    h.tNumber,
     h.paymentMethod,
     h.notes,
   ].map(escapeCSVField);
@@ -162,6 +175,7 @@ export async function exportToCSV(
 
 /**
  * Generate CSV content for category summary export
+ * Enhanced with detailed tax breakdown for Invoice System compliance
  * @param receipts - Array of receipts to summarize
  * @param lang - Language for headers
  * @returns CSV content as string
@@ -169,32 +183,35 @@ export async function exportToCSV(
 function generateSummaryCSVContent(receipts: Receipt[], lang: Language): string {
   const isJapanese = lang === 'ja';
 
-  // Headers
+  // Headers with enhanced tax breakdown
   const headers = isJapanese
-    ? ['勘定科目', '件数', '税抜金額', '消費税(8%)', '消費税(10%)', '合計金額']
-    : ['Category', 'Count', 'Subtotal', 'Tax (8%)', 'Tax (10%)', 'Total'];
+    ? ['勘定科目', '件数', '8%対象額', '8%消費税額', '8%税込額', '10%対象額', '10%消費税額', '10%税込額', '合計金額']
+    : ['Category', 'Count', '8% Subtotal', '8% Tax', '8% Total', '10% Subtotal', '10% Tax', '10% Total', 'Total Amount'];
 
-  // Group by category
+  // Group by category with detailed tax breakdown
   const categoryTotals: Record<
     string,
-    { count: number; subtotal: number; tax8: number; tax10: number; total: number }
+    { count: number; tax8Subtotal: number; tax8Amount: number; tax8Total: number; tax10Subtotal: number; tax10Amount: number; tax10Total: number; total: number }
   > = {};
 
   receipts.forEach((receipt) => {
     const cat = receipt.extractedData.suggestedCategory;
     if (!categoryTotals[cat]) {
-      categoryTotals[cat] = { count: 0, subtotal: 0, tax8: 0, tax10: 0, total: 0 };
+      categoryTotals[cat] = { count: 0, tax8Subtotal: 0, tax8Amount: 0, tax8Total: 0, tax10Subtotal: 0, tax10Amount: 0, tax10Total: 0, total: 0 };
     }
 
     categoryTotals[cat].count++;
-    categoryTotals[cat].subtotal += receipt.extractedData.subtotalExcludingTax;
     categoryTotals[cat].total += receipt.extractedData.totalAmount;
 
     receipt.extractedData.taxBreakdown.forEach((tb) => {
       if (tb.taxRate === 8) {
-        categoryTotals[cat].tax8 += tb.taxAmount;
+        categoryTotals[cat].tax8Subtotal += tb.subtotal;
+        categoryTotals[cat].tax8Amount += tb.taxAmount;
+        categoryTotals[cat].tax8Total += tb.total;
       } else if (tb.taxRate === 10) {
-        categoryTotals[cat].tax10 += tb.taxAmount;
+        categoryTotals[cat].tax10Subtotal += tb.subtotal;
+        categoryTotals[cat].tax10Amount += tb.taxAmount;
+        categoryTotals[cat].tax10Total += tb.total;
       }
     });
   });
@@ -206,9 +223,12 @@ function generateSummaryCSVContent(receipts: Receipt[], lang: Language): string 
     rows.push([
       escapeCSVField(category),
       escapeCSVField(data.count),
-      escapeCSVField(data.subtotal),
-      escapeCSVField(data.tax8),
-      escapeCSVField(data.tax10),
+      escapeCSVField(data.tax8Subtotal),
+      escapeCSVField(data.tax8Amount),
+      escapeCSVField(data.tax8Total),
+      escapeCSVField(data.tax10Subtotal),
+      escapeCSVField(data.tax10Amount),
+      escapeCSVField(data.tax10Total),
       escapeCSVField(data.total),
     ]);
   });
@@ -217,20 +237,26 @@ function generateSummaryCSVContent(receipts: Receipt[], lang: Language): string 
   const grandTotal = Object.values(categoryTotals).reduce(
     (acc, data) => ({
       count: acc.count + data.count,
-      subtotal: acc.subtotal + data.subtotal,
-      tax8: acc.tax8 + data.tax8,
-      tax10: acc.tax10 + data.tax10,
+      tax8Subtotal: acc.tax8Subtotal + data.tax8Subtotal,
+      tax8Amount: acc.tax8Amount + data.tax8Amount,
+      tax8Total: acc.tax8Total + data.tax8Total,
+      tax10Subtotal: acc.tax10Subtotal + data.tax10Subtotal,
+      tax10Amount: acc.tax10Amount + data.tax10Amount,
+      tax10Total: acc.tax10Total + data.tax10Total,
       total: acc.total + data.total,
     }),
-    { count: 0, subtotal: 0, tax8: 0, tax10: 0, total: 0 }
+    { count: 0, tax8Subtotal: 0, tax8Amount: 0, tax8Total: 0, tax10Subtotal: 0, tax10Amount: 0, tax10Total: 0, total: 0 }
   );
 
   rows.push([
     escapeCSVField(isJapanese ? '合計' : 'Total'),
     escapeCSVField(grandTotal.count),
-    escapeCSVField(grandTotal.subtotal),
-    escapeCSVField(grandTotal.tax8),
-    escapeCSVField(grandTotal.tax10),
+    escapeCSVField(grandTotal.tax8Subtotal),
+    escapeCSVField(grandTotal.tax8Amount),
+    escapeCSVField(grandTotal.tax8Total),
+    escapeCSVField(grandTotal.tax10Subtotal),
+    escapeCSVField(grandTotal.tax10Amount),
+    escapeCSVField(grandTotal.tax10Total),
     escapeCSVField(grandTotal.total),
   ]);
 
