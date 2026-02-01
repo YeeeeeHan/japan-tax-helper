@@ -39,3 +39,9 @@ sample_receipts/
 # MCP
 .mcp
 .playwright-mcp
+
+# Remotion demo
+REMOTION_DEMO_PLAN.md
+japan-tax-demo/
+skills/
+.agent/skills/remotion-best-practices/

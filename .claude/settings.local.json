@@ -39,7 +39,12 @@
       "mcp__plugin_playwright_playwright__browser_resize",
       "Bash(magick:*)",
       "Bash(lsof:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "WebFetch(domain:www.e-tax.nta.go.jp)",
+      "Skill(remotion-best-practices)",
+      "Bash(open:*)",
+      "Bash(duti:*)",
+      "mcp__chrome_devtools__list_pages"
     ]
   }
 }
