@@ -9,9 +9,15 @@ import { CATEGORY_TO_LEDGER_COLUMN, EXPENSE_COLUMNS_ORDER } from './ledger-mappi
  * @returns Complete ledger export structure
  */
 export function transformReceiptsToLedger(receipts: Receipt[]): LedgerExport {
+  // Filter out receipts with invalid/missing dates
+  const validReceipts = receipts.filter(r => {
+    const d = new Date(r.extractedData.transactionDate);
+    return r.extractedData.transactionDate && !isNaN(d.getTime());
+  });
+
   // Sort receipts by date (oldest first)
-  const sortedReceipts = [...receipts].sort(
-    (a, b) => a.extractedData.transactionDate.getTime() - b.extractedData.transactionDate.getTime()
+  const sortedReceipts = [...validReceipts].sort(
+    (a, b) => new Date(a.extractedData.transactionDate).getTime() - new Date(b.extractedData.transactionDate).getTime()
   );
 
   // Convert receipts to ledger rows
@@ -53,7 +59,7 @@ export function transformReceiptsToLedger(receipts: Receipt[]): LedgerExport {
  */
 function receiptToLedgerRow(receipt: Receipt): LedgerRow {
   const { extractedData } = receipt;
-  const date = extractedData.transactionDate;
+  const date = new Date(extractedData.transactionDate);
 
   // Get the ledger column for this category
   const categoryColumn = CATEGORY_TO_LEDGER_COLUMN[extractedData.suggestedCategory];
@@ -266,7 +272,7 @@ function calculateDateRange(receipts: Receipt[]): { from: Date; to: Date } {
     return { from: now, to: now };
   }
 
-  const dates = receipts.map(r => r.extractedData.transactionDate);
+  const dates = receipts.map(r => new Date(r.extractedData.transactionDate));
   const from = new Date(Math.min(...dates.map(d => d.getTime())));
   const to = new Date(Math.max(...dates.map(d => d.getTime())));
 
