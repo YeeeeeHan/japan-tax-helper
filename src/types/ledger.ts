@@ -20,20 +20,25 @@ export interface LedgerRow {
   miscIncome?: number;   // 雑収入等 (F)
 
   // Expense category columns (only ONE populated per row based on category)
-  // Columns G-U in kichou04.xlsx
-  salaries?: number;         // 給料賃金 (H)
-  outsourcing?: number;      // 外注工賃 (I)
-  depreciation?: number;     // 減価償却費 (J)
-  badDebts?: number;         // 貸倒金 (K)
-  rent?: number;             // 地代家賃 (L)
-  interest?: number;         // 利子割引料 (N)
-  taxes?: number;            // 租税公課 (O)
-  utilities?: number;        // 水道光熱費 (P)
-  travel?: number;           // 旅費交通費 (Q)
-  communication?: number;    // 通信費 (R)
-  repairs?: number;          // 修繕費 (S)
-  consumables?: number;      // 消耗品費 (T)
-  misc?: number;             // 雑費 (U)
+  // Order matches NTA 青色申告決算書 (items 8-31)
+  taxes?: number;            // 租税公課 (8)
+  packing?: number;          // 荷造運賃 (9)
+  utilities?: number;        // 水道光熱費 (10)
+  travel?: number;           // 旅費交通費 (11)
+  communication?: number;    // 通信費 (12)
+  advertising?: number;      // 広告宣伝費 (13)
+  entertainment?: number;    // 接待交際費 (14)
+  insurance?: number;        // 損害保険料 (15)
+  repairs?: number;          // 修繕費 (16)
+  consumables?: number;      // 消耗品費 (17)
+  depreciation?: number;     // 減価償却費 (18)
+  welfare?: number;          // 福利厚生費 (19)
+  salaries?: number;         // 給料賃金 (20)
+  outsourcing?: number;      // 外注工賃 (21)
+  interest?: number;         // 利子割引料 (22)
+  rent?: number;             // 地代家賃 (23)
+  badDebts?: number;         // 貸倒金 (24)
+  misc?: number;             // 雑費 (31)
 
   // Additional fields (not in template but needed for traceability)
   receiptId?: string;    // Reference to original receipt
@@ -55,18 +60,23 @@ export interface LedgerSubtotal {
   sales?: number;
   purchases?: number;
   miscIncome?: number;
-  salaries?: number;
-  outsourcing?: number;
-  depreciation?: number;
-  badDebts?: number;
-  rent?: number;
-  interest?: number;
   taxes?: number;
+  packing?: number;
   utilities?: number;
   travel?: number;
   communication?: number;
+  advertising?: number;
+  entertainment?: number;
+  insurance?: number;
   repairs?: number;
   consumables?: number;
+  depreciation?: number;
+  welfare?: number;
+  salaries?: number;
+  outsourcing?: number;
+  interest?: number;
+  rent?: number;
+  badDebts?: number;
   misc?: number;
 
   // Totals

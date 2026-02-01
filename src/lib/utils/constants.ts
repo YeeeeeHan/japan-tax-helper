@@ -15,7 +15,9 @@ export const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string; descri
   { value: '外注工賃', label: '外注工賃', description: 'Outsourcing costs' },
   // Standard NTA categories
   { value: '租税公課', label: '租税公課', description: 'Taxes and public charges' },
+  { value: '荷造運賃', label: '荷造運賃', description: 'Packing & shipping' },
   { value: '水道光熱費', label: '水道光熱費', description: 'Utilities' },
+  { value: '損害保険料', label: '損害保険料', description: 'Insurance premiums' },
   { value: '修繕費', label: '修繕費', description: 'Repairs' },
   { value: '給料賃金', label: '給料賃金', description: 'Salaries & wages' },
   { value: '減価償却費', label: '減価償却費', description: 'Depreciation' },

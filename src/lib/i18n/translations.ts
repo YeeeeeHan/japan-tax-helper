@@ -226,6 +226,8 @@ export const translations = {
     category_交際費: '交際費',
     category_接待交際費: '接待交際費',
     category_広告宣伝費: '広告宣伝費',
+    category_荷造運賃: '荷造運賃',
+    category_損害保険料: '損害保険料',
     category_福利厚生費: '福利厚生費',
     category_未分類: '未分類',
 
@@ -489,6 +491,8 @@ export const translations = {
     category_交際費: '交際費 (Entertainment)',
     category_接待交際費: '接待交際費 (Entertainment Expenses)',
     category_広告宣伝費: '広告宣伝費 (Advertising)',
+    category_荷造運賃: '荷造運賃 (Packing & Shipping)',
+    category_損害保険料: '損害保険料 (Insurance)',
     category_福利厚生費: '福利厚生費 (Employee Welfare)',
     category_未分類: '未分類 (Uncategorized)',
 

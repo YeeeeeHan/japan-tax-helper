@@ -133,37 +133,44 @@ Other items (10%):    ¥2,000  →  Tax: ¥200  →  Total: ¥2,200
 
 ## Expense Categories for 個人事業主 (Individual Business Owners)
 
-### Tier 1: Essential Categories (必須カテゴリ)
+### NTA 青色申告決算書 Official Categories (Items 8-31)
 
-These cover ~90% of typical business receipts:
+These are the 18 official expense categories on the NTA 青色申告決算書 form.
+Our ledger export maps directly to these in the same order.
 
-| Japanese (勘定科目) | English | Common Examples (主な例) |
-|---------------------|---------|--------------------------|
-| 旅費交通費 | Travel & Transportation | 電車、タクシー、出張交通費、飛行機、ホテル |
-| 通信費 | Communication Expenses | 業務用携帯、SIM、通話料、インターネット |
-| 消耗品費 | Office Supplies | 文房具、ケーブル、**10万円未満の機器** |
-| 新聞図書費 | Books & Subscriptions | 書籍、判例DB、オンライン資料、雑誌 |
-| 研修費 | Training & Education | セミナー、研修参加費、スクール |
-| 支払手数料 | Professional & Association Fees | 弁護士会費、各種登録料、銀行手数料 |
-| 交際費 | Entertainment Expenses | 業務上の会食・接待、ギフト |
-| 会議費 | Meeting Expenses | 会議用飲食（軽食等）、会議室代 |
+| # | Japanese (勘定科目) | English | Common Examples (主な例) |
+|---|---------------------|---------|--------------------------|
+| 8 | 租税公課 | Taxes & Public Charges | 印紙税、登録免許税、収入印紙、固定資産税 |
+| 9 | 荷造運賃 | Packing & Shipping | 宅配、郵送、配送料、レターパック |
+| 10 | 水道光熱費 | Utilities | 電気・水道（按分）、ガス |
+| 11 | 旅費交通費 | Travel & Transportation | 電車、タクシー、出張交通費、飛行機、ホテル |
+| 12 | 通信費 | Communication | 業務用携帯、SIM、通話料、インターネット |
+| 13 | 広告宣伝費 | Advertising | 名刺、HP制作、広報、SNS広告 |
+| 14 | 接待交際費 | Entertainment | 業務上の会食・接待、ギフト、ゴルフ |
+| 15 | 損害保険料 | Insurance Premiums | 業務賠償保険、火災保険、自動車保険 |
+| 16 | 修繕費 | Repairs & Maintenance | PC修理、備品修理、メンテナンス |
+| 17 | 消耗品費 | Consumables | 文房具、ケーブル、**10万円未満の機器** |
+| 18 | 減価償却費 | Depreciation | 年度ごとの償却額 |
+| 19 | 福利厚生費 | Employee Welfare | 従業員慰安、健康診断、社員旅行 |
+| 20 | 給料賃金 | Salaries & Wages | 従業員給与、アルバイト代 |
+| 21 | 外注工賃 | Outsourcing | 翻訳、調査委託、業務委託 |
+| 22 | 利子割引料 | Interest & Discounts | 借入金利息、手形割引料 |
+| 23 | 地代家賃 | Rent | 事務所賃料（按分）、家賃 |
+| 24 | 貸倒金 | Bad Debts | 回収不能債権 |
+| 31 | 雑費 | Miscellaneous | 他に分類しにくい支出 |
 
-### Tier 2: Secondary Categories (準必須カテゴリ)
+**Note:** Items 25-30 are custom categories (任意科目) on the NTA form. The app maps `交際費` → `接待交際費`, and `未分類` → `雑費`.
 
-Commonly needed depending on business type:
+### Additional App Categories (not separate NTA columns)
 
-| Japanese (勘定科目) | English | Common Examples (主な例) |
-|---------------------|---------|--------------------------|
-| 外注費 | Outsourcing Fees | 翻訳、調査委託、業務委託 |
-| 広告宣伝費 | Advertising & Marketing | 名刺、HP制作、広報、SNS広告 |
-| 地代家賃 | Rent | 事務所賃料（按分）、家賃 |
-| 水道光熱費 | Utilities | 電気・水道（按分）、ガス |
-| 修繕費 | Repairs & Maintenance | PC修理、備品修理 |
-| 保険料 | Insurance Premiums | 業務賠償保険、火災保険 |
-| 租税公課 | Taxes & Public Dues | 印紙税、登録免許税、収入印紙 |
-| 雑費 | Miscellaneous Expenses | 他に分類しにくい支出 |
+These are used in the app for AI categorization but don't have dedicated NTA columns:
 
-### Tier 3: High-Value Items & Depreciation (減価償却関連)
+| Japanese (勘定科目) | Maps To | Notes |
+|---------------------|---------|-------|
+| 交際費 | 接待交際費 (14) | Alias for entertainment |
+| 未分類 | 雑費 (31) | Default for unclassifiable items |
+
+### High-Value Items & Depreciation (減価償却関連)
 
 **⚠️ IMPORTANT: Items ≥¥100,000 require special treatment**
 

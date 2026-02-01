@@ -102,22 +102,24 @@ export type ExpenseCategory =
   // NTA Official Expense Categories (国税庁公式経費科目)
   // Reference: https://www.nta.go.jp/taxes/shiraberu/shinkoku/kojin_jigyo/index.htm
   | '租税公課' // Taxes and public charges (印紙税、登録免許税など)
+  | '荷造運賃' // Packing & shipping (梱包、配送、宅配など)
   | '水道光熱費' // Utilities (電気、ガス、水道)
   | '旅費交通費' // Travel & transportation (タクシー、電車、出張費など)
   | '通信費' // Communication (携帯、電話、インターネットなど)
+  | '広告宣伝費' // Advertising (広告、マーケティング)
+  | '接待交際費' // Entertainment expenses (接待費用)
+  | '損害保険料' // Insurance premiums (損害保険、賠償責任保険など)
   | '修繕費' // Repairs (機器修理、メンテナンスなど)
   | '消耗品費' // Consumables (文具、事務用品、10万円未満の備品)
-  | '雑費' // Miscellaneous expenses
+  | '減価償却費' // Depreciation (固定資産の償却)
+  | '福利厚生費' // Employee welfare (従業員福利厚生)
   | '給料賃金' // Salaries & wages (従業員給与)
   | '外注工賃' // Outsourcing costs (業務委託費)
-  | '減価償却費' // Depreciation (固定資産の償却)
-  | '貸倒金' // Bad debts (回収不能債権)
-  | '地代家賃' // Rent (事務所賃料など)
   | '利子割引料' // Interest & discounts (借入金利息など)
-  | '交際費' // Entertainment (飲食、ギフトなど)
-  | '接待交際費' // Entertainment expenses (接待費用)
-  | '広告宣伝費' // Advertising (広告、マーケティング)
-  | '福利厚生費' // Employee welfare (従業員福利厚生)
+  | '地代家賃' // Rent (事務所賃料など)
+  | '貸倒金' // Bad debts (回収不能債権)
+  | '雑費' // Miscellaneous expenses
+  | '交際費' // Entertainment (飲食、ギフトなど) - maps to 接待交際費
   | '未分類'; // Uncategorized
 
 export type PaymentMethod =

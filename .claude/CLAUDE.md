@@ -133,32 +133,21 @@ Keywords in `lib/ai/prompts.ts` help improve categorization accuracy.
 
 ### Adding a New Expense Category
 
-1. Update type in `src/types/receipt.ts`:
-```typescript
-export type ExpenseCategory =
-  | '旅費交通費'
-  | '交際費'
-  | 'YOUR_NEW_CATEGORY' // Add here
-  | '未分類';
-```
+Update these 5 files:
 
-2. Add to constants in `src/lib/utils/constants.ts`:
-```typescript
-export const EXPENSE_CATEGORIES = [
-  // ... existing
-  {
-    value: 'YOUR_NEW_CATEGORY',
-    label: 'YOUR_NEW_CATEGORY',
-    description: 'Description here'
-  },
-];
-```
+1. Add to `ExpenseCategory` type in `src/types/receipt.ts`
+2. Add to `EXPENSE_CATEGORIES` array in `src/lib/utils/constants.ts`
+3. Add category + keywords to `src/lib/ai/prompts.ts`
+4. Add column mapping in `src/lib/export/ledger-mapping.ts`:
+   - `CATEGORY_TO_LEDGER_COLUMN` — map category → column key
+   - `LEDGER_COLUMN_TO_LABEL` — column key → Japanese label
+   - `EXPENSE_COLUMNS_ORDER` — add in NTA 青色申告決算書 order
+   - `LEDGER_COLUMN_WIDTHS` — set column width
+5. Add optional field to `LedgerRow` and `LedgerSubtotal` in `src/types/ledger.ts`
+6. Add translation keys in `src/lib/i18n/translations.ts` (both ja and en)
 
-3. Update Gemini prompt in `src/lib/ai/prompts.ts`:
-```typescript
-// Add to category list in RECEIPT_EXTRACTION_PROMPT
-// Add keywords to CATEGORY_KEYWORDS
-```
+**Current NTA categories (18 columns, items 8-31):**
+租税公課, 荷造運賃, 水道光熱費, 旅費交通費, 通信費, 広告宣伝費, 接待交際費, 損害保険料, 修繕費, 消耗品費, 減価償却費, 福利厚生費, 給料賃金, 外注工賃, 利子割引料, 地代家賃, 貸倒金, 雑費
 
 ### Updating Tax Rates
 

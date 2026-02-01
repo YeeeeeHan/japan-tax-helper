@@ -552,6 +552,35 @@ Route (app)                              Size     First Load JS
 
 ---
 
+## Session 5: NTA Ledger Export Fixes & Category Alignment
+**Date**: February 1, 2026
+**Status**: Complete
+
+### Changes Made
+
+1. **Fixed ledger export crash** — `transactionDate` stored as string in IndexedDB, but export called `.getTime()`/`.getFullYear()` expecting Date objects. Wrapped with `new Date()`.
+2. **Filtered invalid receipts** — Receipts with missing/null dates were producing empty rows. Added validation filter.
+3. **Added 5 missing NTA categories** — Walked through NTA 青色申告決算書 form at keisan.nta.go.jp and identified missing categories:
+   - 荷造運賃 (Packing/shipping) — new
+   - 広告宣伝費 (Advertising) — was mapped to 雑費, now dedicated column
+   - 接待交際費 (Entertainment) — was mapped to 雑費, now dedicated column
+   - 損害保険料 (Insurance) — new
+   - 福利厚生費 (Employee welfare) — was mapped to 雑費, now dedicated column
+4. **Reordered all columns** to match NTA form order (items 8-31)
+5. **Added i18n translations** for new categories
+6. **Updated docs** — FEATURES.md, RESEARCH.md, CLAUDE.md, SESSIONS.md
+
+### Files Modified
+- `src/types/receipt.ts` — ExpenseCategory type
+- `src/types/ledger.ts` — LedgerRow, LedgerSubtotal
+- `src/lib/utils/constants.ts` — EXPENSE_CATEGORIES
+- `src/lib/export/ledger-mapping.ts` — All mappings rewritten
+- `src/lib/export/ledger-transform.ts` — Date string fixes
+- `src/lib/ai/prompts.ts` — Categories + keywords
+- `src/lib/i18n/translations.ts` — ja/en translations
+
+---
+
 **Session Log Format**:
 - ✅ = Completed
 - 🔄 = In Progress

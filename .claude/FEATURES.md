@@ -289,9 +289,14 @@ handleSave() {
 
 **Location**: Export button in dashboard
 **Files**:
-- `src/lib/export/excel.ts`
+- `src/lib/export/excel.ts` — Standard receipt export (4 sheets)
+- `src/lib/export/ledger.ts` — NTA Ledger Format export
+- `src/lib/export/ledger-transform.ts` — Receipt → Ledger row conversion
+- `src/lib/export/ledger-mapping.ts` — Category → Column mapping
 
-### How It Works
+### Export Formats
+
+#### Standard Excel Export (4 sheets)
 
 ```typescript
 1. Get all receipts from IndexedDB
@@ -307,8 +312,6 @@ handleSave() {
 4. Download as .xlsx file
 ```
 
-### Sheet Structure
-
 **Sheet 1: 領収書一覧 (Main Data)**
 
 | 日付 | 発行者 | T番号 | 内容 | 税抜金額 | 消費税(8%) | 消費税(10%) | 合計金額 | 分類 | 備考 |
@@ -320,7 +323,7 @@ handleSave() {
 | 分類 | 件数 | 合計金額 |
 |------|------|----------|
 | 旅費交通費 | 15 | ¥45,230 |
-| 交際費 | 8 | ¥32,100 |
+| 接待交際費 | 8 | ¥32,100 |
 | **合計** | **143** | **¥523,450** |
 
 **Sheet 3: 要確認 (Flagged)**
@@ -334,6 +337,36 @@ handleSave() {
 | Image | 日付 | 発行者 | 金額 |
 |-------|------|--------|------|
 | [Embedded JPEG] | 2023/10/24 | Amazon | ¥12,400 |
+
+#### NTA Ledger Format Export (帳簿の様式例)
+
+Matches the official NTA 青色申告決算書 column order (items 8-31).
+Single sheet with 21 columns: 年・月・日・摘要 + 3 income + 18 expense columns.
+
+**Expense columns (in NTA order):**
+
+| # | Column | Japanese |
+|---|--------|----------|
+| 8 | taxes | 租税公課 |
+| 9 | packing | 荷造運賃 |
+| 10 | utilities | 水道光熱費 |
+| 11 | travel | 旅費交通費 |
+| 12 | communication | 通信費 |
+| 13 | advertising | 広告宣伝費 |
+| 14 | entertainment | 接待交際費 |
+| 15 | insurance | 損害保険料 |
+| 16 | repairs | 修繕費 |
+| 17 | consumables | 消耗品費 |
+| 18 | depreciation | 減価償却費 |
+| 19 | welfare | 福利厚生費 |
+| 20 | salaries | 給料賃金 |
+| 21 | outsourcing | 外注工賃 |
+| 22 | interest | 利子割引料 |
+| 23 | rent | 地代家賃 |
+| 24 | badDebts | 貸倒金 |
+| 31 | misc | 雑費 |
+
+Includes automatic daily subtotals, monthly subtotals, and grand total rows.
 
 ### Technical Details
 
